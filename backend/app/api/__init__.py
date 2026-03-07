@@ -139,7 +139,7 @@ async def check_original(req: CheckOriginalRequest) -> dict:
   and returns fuzzy matches.
   """
   try:
-    us_result = get_transcript(req.us_video_id, "en")
+    us_result = get_transcript(req.us_video_id)
     us_text = us_result.get("transcript", "") or ""
     us_lang = us_result.get("language", "unknown")
 
