@@ -1,0 +1,11 @@
+# Root .dockerignore for Dockerfile that COPYs backend/
+backend/.venv
+backend/__pycache__
+backend/.pytest_cache
+backend/.env
+.git
+.gitignore
+*.md
+competitor-tracker.html
+roadmap.txt
+notes
