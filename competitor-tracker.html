@@ -773,7 +773,7 @@
     <!-- CHECK ORIGINAL US VIDEO -->
     <div class="checker-card">
       <h3>Check original US Short</h3>
-      <p style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem">Paste a US Shorts link to check if any competitor has already uploaded it. Load competitor transcripts once (after Refresh All), then you can check 20–30 US videos without rate limits.</p>
+      <p style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem">Paste a US Shorts link to check if any competitor has already uploaded it. Load competitor transcripts once (after Refresh All), then you can check 20–30 US videos without rate limits. Removing/re-adding channels does not delete server cache; only missing videos are loaded (credits used per new fetch). Server restart clears the cache.</p>
       <div class="checker-row" style="align-items:center;margin-bottom:0.5rem">
         <span style="font-size:0.75rem;color:var(--muted)" id="transcript-cache-status">Competitor transcripts: not loaded</span>
         <button class="btn btn-ghost" onclick="warmTranscripts()" id="warm-transcripts-btn" style="font-size:0.75rem">Load transcripts</button>
@@ -906,8 +906,16 @@ async function updateTranscriptCacheStatus() {
     const data = await res.json().catch(() => ({}));
     const n = data.cached_count || 0;
     const cachedIds = Array.isArray(data.cached_video_ids) ? data.cached_video_ids : [];
-    el.textContent = n ? `Competitor transcripts: ${n} cached (ready to check)` : 'Competitor transcripts: not loaded';
-    // Mark transcript buttons green when that video is cached
+    const total = loadedCompetitorVideos.length;
+    const cachedOfFeed = total ? loadedCompetitorVideos.filter(v => cachedIds.includes(v.video_id)).length : 0;
+    const toLoad = total ? total - cachedOfFeed : 0;
+    if (total && toLoad >= 0) {
+      el.textContent = toLoad === 0
+        ? `Competitor transcripts: all ${total} cached (ready to check). Cache 6h; server restart clears it.`
+        : `Competitor transcripts: ${cachedOfFeed}/${total} cached, ${toLoad} to load (≈${toLoad} credits). Cache 6h.`;
+    } else {
+      el.textContent = n ? `Competitor transcripts: ${n} cached (ready to check)` : 'Competitor transcripts: not loaded';
+    }
     document.querySelectorAll('.transcript-btn[data-video-id]').forEach(btn => {
       const id = btn.getAttribute('data-video-id');
       btn.classList.toggle('transcript-cached', id && cachedIds.includes(id));
