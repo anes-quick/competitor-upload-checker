@@ -753,9 +753,14 @@
     </div>
 
     <!-- ADD CHANNEL -->
-    <div class="section-header">
+    <div class="section-header" style="flex-wrap:wrap;gap:0.5rem">
       <span class="section-title">Tracked Channels</span>
       <span style="font-size:0.7rem;color:var(--muted)" id="channel-count"></span>
+      <button type="button" class="btn btn-ghost" id="recent-channels-btn" onclick="toggleRecentChannels()" style="font-size:0.75rem;margin-left:auto" title="Recently removed — click to add back">↶ Recent</button>
+    </div>
+    <div id="recent-channels-panel" class="hidden" style="margin-bottom:0.75rem;padding:0.75rem;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+      <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem">Recently removed — click Add to track again</div>
+      <div id="recent-channels-list" style="display:flex;flex-wrap:wrap;gap:0.35rem"></div>
     </div>
 
     <div class="add-channel-row">
@@ -764,18 +769,6 @@
     </div>
 
     <div class="channels-list" id="channels-list"></div>
-
-    <!-- SAVED LIST -->
-    <div class="section-header" style="margin-top:1.5rem">
-      <span class="section-title">Saved list</span>
-      <span style="font-size:0.7rem;color:var(--muted)" id="saved-list-count"></span>
-    </div>
-    <p style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem">Add channels to a list and remove them individually.</p>
-    <div class="add-channel-row">
-      <input type="text" id="saved-list-input" placeholder="Paste channel URL to add…" />
-      <button class="btn" id="saved-list-add-btn" onclick="addToSavedList()">+ Add to list</button>
-    </div>
-    <div class="channels-list" id="saved-list"></div>
 
     <!-- CHECK ORIGINAL US VIDEO -->
     <div class="checker-card">
@@ -838,11 +831,12 @@
 
 <script>
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
-const STORAGE_KEY_CHANNELS   = 'germwatch_channels';
-const STORAGE_KEY_SAVED_LIST = 'germwatch_saved_list';
-const STORAGE_KEY_API        = 'germwatch_apikey';
-const STORAGE_KEY_PW         = 'germwatch_pw';
-const STORAGE_KEY_CARD_MIN   = 'germwatch_card_min';
+const STORAGE_KEY_CHANNELS     = 'germwatch_channels';
+const STORAGE_KEY_RECENT       = 'germwatch_recent_channels';
+const MAX_RECENT_CHANNELS      = 25;
+const STORAGE_KEY_API          = 'germwatch_apikey';
+const STORAGE_KEY_PW           = 'germwatch_pw';
+const STORAGE_KEY_CARD_MIN     = 'germwatch_card_min';
 const BACKEND_URL = (typeof window !== 'undefined' && /localhost|127\.0\.0\.1/.test(window.location.hostname))
   ? 'http://localhost:8001'
   : 'https://competitor-upload-checker-production.up.railway.app';
@@ -1190,7 +1184,9 @@ async function addChannel() {
     }
     channels.push(info);
     saveChannels(channels);
+    removeFromRecentChannels(info.channelId);
     renderChannelPills();
+    renderRecentChannels();
     input.value = '';
     setStatus('ok', `Added: ${info.name}`);
     loadAllChannels();
@@ -1204,80 +1200,88 @@ async function addChannel() {
 
 function removeChannel(i) {
   const channels = loadChannels();
+  const removed = channels[i];
+  if (removed) addToRecentChannels(removed);
   channels.splice(i, 1);
   saveChannels(channels);
   renderChannelPills();
+  renderRecentChannels();
   loadAllChannels();
 }
 
-// ─── SAVED LIST ───────────────────────────────────────────────────────────────
-function loadSavedList() {
-  return JSON.parse(localStorage.getItem(STORAGE_KEY_SAVED_LIST) || '[]');
+// ─── RECENT CHANNELS (add back without pasting URL) ─────────────────────────────
+function getRecentChannels() {
+  return JSON.parse(localStorage.getItem(STORAGE_KEY_RECENT) || '[]');
 }
 
-function saveSavedList(list) {
-  localStorage.setItem(STORAGE_KEY_SAVED_LIST, JSON.stringify(list));
+function saveRecentChannels(list) {
+  localStorage.setItem(STORAGE_KEY_RECENT, JSON.stringify(list.slice(0, MAX_RECENT_CHANNELS)));
 }
 
-function renderSavedList() {
-  const list = loadSavedList();
-  const el = document.getElementById('saved-list');
-  const countEl = document.getElementById('saved-list-count');
-  if (!el || !countEl) return;
-  el.innerHTML = '';
-  countEl.textContent = list.length ? `${list.length} item${list.length !== 1 ? 's' : ''}` : '';
-  list.forEach((item, i) => {
+function addToRecentChannels(ch) {
+  if (!ch || !ch.channelId) return;
+  let list = getRecentChannels().filter(r => r.channelId !== ch.channelId);
+  list.unshift({ channelId: ch.channelId, name: ch.name, url: ch.url, thumb: ch.thumb });
+  saveRecentChannels(list);
+}
+
+function removeFromRecentChannels(channelId) {
+  saveRecentChannels(getRecentChannels().filter(r => r.channelId !== channelId));
+}
+
+function toggleRecentChannels() {
+  const panel = document.getElementById('recent-channels-panel');
+  if (!panel) return;
+  panel.classList.toggle('hidden');
+  if (!panel.classList.contains('hidden')) renderRecentChannels();
+}
+
+function renderRecentChannels() {
+  const listEl = document.getElementById('recent-channels-list');
+  if (!listEl) return;
+  const list = getRecentChannels();
+  const tracked = loadChannels();
+  const trackedIds = new Set(tracked.map(c => c.channelId));
+  listEl.innerHTML = '';
+  list.filter(r => !trackedIds.has(r.channelId)).forEach(ch => {
     const pill = document.createElement('div');
     pill.className = 'channel-pill';
-    pill.innerHTML = `
-      <span>${item.name || item.url || item.channelId}</span>
-      <button class="pill-remove" title="Remove" onclick="removeFromSavedList(${i})">×</button>
-    `;
-    el.appendChild(pill);
+    pill.style.display = 'flex';
+    const name = (ch.name || ch.url || ch.channelId || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn';
+    btn.style.cssText = 'font-size:0.7rem;padding:0.2rem 0.5rem;margin-left:0.35rem';
+    btn.textContent = 'Add';
+    btn.dataset.channelId = ch.channelId;
+    btn.onclick = function() { addBackFromRecent(this.dataset.channelId); };
+    pill.innerHTML = `<span>${name}</span>`;
+    pill.appendChild(btn);
+    listEl.appendChild(pill);
   });
+  if (listEl.children.length === 0) {
+    listEl.innerHTML = '<span style="font-size:0.75rem;color:var(--muted)">No recently removed channels</span>';
+  }
 }
 
-async function addToSavedList() {
-  const input = document.getElementById('saved-list-input');
-  const url = (input && input.value || '').trim();
-  if (!url) return;
-
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    alert('Please add your YouTube API key in Settings first.');
+function addBackFromRecent(channelId) {
+  const list = getRecentChannels();
+  const ch = list.find(r => r.channelId === channelId);
+  if (!ch) return;
+  const channels = loadChannels();
+  if (channels.some(c => c.channelId === ch.channelId)) {
+    removeFromRecentChannels(channelId);
+    renderRecentChannels();
     return;
   }
-
-  setStatus('', 'Resolving channel…');
-  const btn = document.getElementById('saved-list-add-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '…'; }
-
-  try {
-    const info = await resolveChannel(url, apiKey);
-    const list = loadSavedList();
-    if (list.some(e => e.channelId === info.channelId)) {
-      showToast('Already in saved list.');
-      return;
-    }
-    list.push({ channelId: info.channelId, name: info.name, url: info.url });
-    saveSavedList(list);
-    renderSavedList();
-    if (input) input.value = '';
-    setStatus('ok', `Added to list: ${info.name}`);
-    showToast(`Added: ${info.name}`);
-  } catch (e) {
-    setStatus('err', 'Could not resolve channel: ' + e.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '+ Add to list'; }
-  }
-}
-
-function removeFromSavedList(i) {
-  const list = loadSavedList();
-  list.splice(i, 1);
-  saveSavedList(list);
-  renderSavedList();
-  setStatus('ok', 'Removed from saved list.');
+  channels.push(ch);
+  saveChannels(channels);
+  removeFromRecentChannels(channelId);
+  renderChannelPills();
+  renderRecentChannels();
+  loadAllChannels();
+  setStatus('ok', `Added back: ${ch.name || ch.channelId}`);
+  showToast(`Added: ${ch.name || ch.channelId}`);
 }
 
 // ─── YOUTUBE API ──────────────────────────────────────────────────────────────
@@ -1541,7 +1545,6 @@ function initCardSizeSlider() {
 function init() {
   initCardSizeSlider();
   renderChannelPills();
-  renderSavedList();
   const apiKey = getApiKey();
   if (apiKey) {
     setStatus('ok', 'API key loaded. Click Refresh All to load videos.');
