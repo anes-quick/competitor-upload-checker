@@ -1,0 +1,103 @@
+Competitor Upload Checker – Roadmap
+===================================
+
+1) Current state (frontend)
+---------------------------
+- Single-page HTML tool (`competitor-tracker.html`) with:
+  - Password gate for access.
+  - Settings panel for YouTube API key and password.
+  - Channel management (add/remove tracked channels).
+  - Feed of last 10 uploads per channel (with thumbnails, age badges, SHORTS badge).
+  - Instructions panel (now collapsible).
+  - Thumbnail size slider to fit more videos per row.
+- Channel handle parsing improved to support special characters (e.g. ß).
+- Basic styling and UX are in a good place.
+
+
+2) Short-term goals (no backend changes yet)
+-------------------------------------------
+- Keep using existing functionality to:
+  - Track competitor channels.
+  - Quickly scan recent uploads.
+- Optional: refine front-end matching (title-based) as a temporary check-before-backend step.
+
+
+3) Backend MVP – transcripts service ✅ DONE
+------------------------------------
+Goal: be able to ask “Has anyone already uploaded this US short?” based on transcripts.
+
+- 3.1. Choose backend stack
+  - Likely Python + FastAPI + `youtube-transcript-api`.
+  - Host on a cheap/free platform (Render, Railway, Fly.io).
+
+- 3.2. Implement basic transcript endpoint
+  - Endpoint: `GET /api/transcript?videoId={VIDEO_ID}`
+  - Responsibilities:
+    - Fetch transcript for a given YouTube video ID (US or DE).
+    - Return JSON with:
+      - `transcript`: full text (concatenated).
+      - `language`: detected/used language.
+    - Handle errors (no transcript, private video, etc.).
+
+- 3.3. Store competitor transcripts (optional for v1, recommended soon after)
+  - When frontend loads recent uploads (per channel), send:
+    - Channel ID, video ID, title, duration, published date.
+  - Backend stores last N (e.g. 10–20) videos per channel with transcripts.
+  - Enforce retention: delete older entries per channel to keep DB small.
+
+
+4) Frontend changes – US link checker
+-------------------------------------
+- 4.1. Add a UI section
+  - New input near the top: “Paste original US Shorts URL”.
+  - Button: “Check competitors”.
+  - Result box showing:
+    - “No match in last 10 uploads” OR
+    - List of matching competitor videos (thumbnail, channel name, age, link) with red warning style.
+
+- 4.2. US link → transcript flow
+  - Extract `videoId` from pasted URL.
+  - Call backend `/api/transcript` with this `videoId`.
+  - Later: pass `videoId` and/or transcript to a matching endpoint.
+
+
+5) Backend matching logic (topic similarity) ✅ DONE
+--------------------------------------------
+Initial, simpler version:
+- 5.1. Use backend to:
+  - Translate US transcript to German (via translation API) OR
+  - Use cross-lingual embeddings directly (if available).
+
+- 5.2. Implement topic similarity:
+  - Normalize text (lowercase, remove stopwords/punctuation).
+  - Compare against stored competitor transcripts for their last N uploads.
+  - Compute similarity score (e.g. keyword overlap or semantic similarity).
+  - Return:
+    - `matches`: array of `{ channelId, channelName, videoId, similarity, title, publishedAt }`.
+
+
+6) Frontend – show matches
+--------------------------
+- 6.1. Consume `/api/check-original` (future endpoint)
+  - Send US `videoId` (and maybe channel list).
+  - Display:
+    - Red notification if any competitor already uploaded a similar video.
+    - Details card(s) for each match:
+      - Competitor channel.
+      - Thumbnail.
+      - Time since upload.
+      - Link to video.
+
+- 6.2. Optional UX improvements
+  - Highlight matching cards directly in the existing feed grid.
+  - Add filters (e.g. show only matches / only fresh uploads).
+
+
+7) Deployment & sharing (Vercel + Railway)
+-----------------------------------------
+- 7.1. Frontend → Vercel (static site for competitor-tracker.html).
+- 7.2. Backend → Railway (FastAPI); CORS allows Vercel frontend origin.
+- 7.3. Sharing: give VA the Vercel frontend URL + short instructions.
+
+→ Progress and step-by-step checklist: see DEPLOYMENT-PROGRESS.md
+

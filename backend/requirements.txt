@@ -1,0 +1,6 @@
+# Pinned for Python 3.9 compatibility (FastAPI 0.129+ requires Python 3.10+)
+fastapi==0.128.8
+uvicorn[standard]==0.30.6
+youtube-transcript-api==1.2.4
+httpx>=0.27.0
+deep-translator>=1.11.0

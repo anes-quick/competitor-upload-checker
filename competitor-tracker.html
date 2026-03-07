@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GermWatch — Competitor Feed</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0b;
+    --surface: #111113;
+    --surface2: #18181c;
+    --border: #232329;
+    --accent: #e8ff47;
+    --accent2: #ff4747;
+    --text: #f0f0f0;
+    --muted: #666672;
+    --font-head: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+    --video-card-min: 160px;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* noise overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.5;
+  }
+
+  header {
+    padding: 2rem 2.5rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .logo {
+    font-family: var(--font-head);
+    font-weight: 800;
+    font-size: 1.6rem;
+    letter-spacing: -0.03em;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .logo-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 12px var(--accent); }
+    50% { opacity: 0.5; box-shadow: 0 0 4px var(--accent); }
+  }
+
+  .header-meta {
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem 2.5rem;
+  }
+
+  /* API KEY SETUP */
+  .setup-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .setup-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .setup-input-wrap {
+    flex: 1;
+    min-width: 200px;
+    position: relative;
+  }
+
+  input[type="text"], input[type="password"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.65rem 1rem;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input:focus { border-color: var(--accent); }
+
+  .btn {
+    background: var(--accent);
+    color: #0a0a0b;
+    border: none;
+    border-radius: 8px;
+    padding: 0.65rem 1.4rem;
+    font-family: var(--font-head);
+    font-weight: 700;
+    font-size: 0.82rem;
+    cursor: pointer;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+
+  .btn:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); opacity: 1; }
+
+  .btn-danger {
+    background: transparent;
+    color: var(--accent2);
+    border: 1px solid #3a1515;
+    font-size: 0.72rem;
+    padding: 0.3rem 0.7rem;
+  }
+
+  .btn-danger:hover { background: #1e0f0f; opacity: 1; }
+
+  /* STATUS */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.72rem;
+    color: var(--muted);
+    padding: 0.5rem 0 1.5rem;
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+  }
+
+  .status-dot.ok { background: #47e87a; box-shadow: 0 0 8px #47e87a88; }
+  .status-dot.err { background: var(--accent2); box-shadow: 0 0 8px #ff474788; }
+
+  /* CHANNELS SECTION */
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .section-title {
+    font-family: var(--font-head);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+  }
+
+  .add-channel-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .add-channel-row input { flex: 1; min-width: 200px; }
+
+  /* CHANNEL PILLS */
+  .channels-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .channel-pill {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.35rem 0.5rem 0.35rem 0.9rem;
+    font-size: 0.75rem;
+    color: var(--text);
+    transition: border-color 0.2s;
+  }
+
+  .channel-pill:hover { border-color: var(--muted); }
+
+  .pill-remove {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 0.1rem;
+    transition: color 0.15s;
+  }
+
+  .pill-remove:hover { color: var(--accent2); }
+
+  /* CHECK ORIGINAL VIDEO */
+  .checker-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .checker-card h3 {
+    font-family: var(--font-head);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    margin-bottom: 0.75rem;
+  }
+
+  .checker-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .checker-row input { flex: 1; min-width: 280px; }
+
+  .checker-result {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+
+  .checker-result.loading { color: var(--muted); }
+  .checker-result.ok { background: #0f1a0a; border: 1px solid #2a3a10; color: var(--accent); }
+  .checker-result.err { background: #1a0f0f; border: 1px solid #3a1515; color: var(--accent2); }
+  .checker-result .transcript-preview { color: var(--muted); font-size: 0.75rem; margin-top: 0.5rem; max-height: 4em; overflow: hidden; text-overflow: ellipsis; }
+
+  /* REFRESH BAR */
+  .refresh-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .last-refresh {
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+
+  .card-size-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 0.25rem;
+  }
+
+  .card-size-control input[type="range"] {
+    accent-color: var(--accent);
+  }
+
+  /* LOADING */
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 0.4rem;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* CHANNEL BLOCKS */
+  .channel-block {
+    margin-bottom: 3rem;
+    animation: fadeUp 0.4s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .channel-name-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .channel-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+  }
+
+  .channel-name-text {
+    font-family: var(--font-head);
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  .channel-sub {
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 0.1rem;
+  }
+
+  .channel-link {
+    margin-left: auto;
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.05em;
+  }
+
+  .channel-link:hover { color: var(--accent); }
+
+  /* VIDEO GRID */
+  .video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--video-card-min, 200px), 1fr));
+    gap: 1rem;
+  }
+
+  .video-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    transition: border-color 0.2s, transform 0.15s;
+    position: relative;
+  }
+
+  .video-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-3px);
+  }
+
+  .video-thumb {
+    width: 100%;
+    aspect-ratio: 9/16;
+    object-fit: cover;
+    background: var(--surface2);
+    display: block;
+  }
+
+  .video-thumb.landscape {
+    aspect-ratio: 16/9;
+  }
+
+  .video-info {
+    padding: 0.7rem 0.8rem 0.8rem;
+  }
+
+  .video-title {
+    font-family: var(--font-head);
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.35;
+    display: -webkit-box;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 0.4rem;
+  }
+
+  .video-meta {
+    font-size: 0.65rem;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .video-age {
+    background: var(--surface2);
+    border-radius: 4px;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.62rem;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+
+  .transcript-btn {
+    position: absolute;
+    bottom: 0.5rem;
+    right: 0.5rem;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.7);
+    border: 1px solid var(--border);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    transition: background 0.2s;
+  }
+  .transcript-btn:hover { background: var(--surface2); color: var(--accent); }
+  .transcript-btn.transcript-cached { color: #22c55e; border-color: #22c55e; }
+  .transcript-btn.transcript-cached:hover { background: rgba(34,197,94,0.2); color: #22c55e; }
+
+  .transcript-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 2rem;
+  }
+  .transcript-modal-content {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    max-width: 560px;
+    max-height: 80vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .transcript-modal-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .transcript-modal-body {
+    padding: 1.25rem;
+    overflow-y: auto;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .transcript-modal-close {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 0.25rem;
+  }
+  .transcript-modal-close:hover { color: var(--text); }
+
+  .match-card {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    background: var(--surface2);
+    border: 1px solid #3a1515;
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  .match-card img { width: 80px; height: auto; border-radius: 6px; object-fit: cover; }
+  .match-card .match-info { flex: 1; }
+  .match-card .match-title { font-weight: 600; font-size: 0.8rem; margin-bottom: 0.2rem; }
+  .match-card .match-channel { font-size: 0.7rem; color: var(--muted); }
+  .match-card a { color: var(--accent); font-size: 0.72rem; }
+
+  .video-age.fresh {
+    color: var(--accent);
+    border-color: #3a4200;
+    background: #1a1f00;
+  }
+
+  /* SHORTS badge */
+  .shorts-badge {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    background: var(--accent2);
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 600;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-family: var(--font-head);
+    letter-spacing: 0.05em;
+  }
+
+  /* EMPTY / ERROR STATES */
+  .empty-state {
+    padding: 3rem 2rem;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    margin-bottom: 3rem;
+  }
+
+  .empty-icon { font-size: 2rem; margin-bottom: 0.75rem; }
+
+  /* INSTRUCTIONS PANEL */
+  .instructions {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 10px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2.5rem;
+    font-size: 0.78rem;
+    line-height: 1.7;
+    color: #aaaaaa;
+  }
+
+  .instructions h3 {
+    font-family: var(--font-head);
+    font-size: 0.8rem;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+  }
+
+  .instructions ol { padding-left: 1.25rem; }
+  .instructions li { margin-bottom: 0.4rem; }
+  .instructions a { color: var(--accent); }
+  .instructions code {
+    background: var(--surface2);
+    border-radius: 4px;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.75rem;
+    border: 1px solid var(--border);
+  }
+
+  .toggle-instructions {
+    font-size: 0.72rem;
+    color: var(--muted);
+    cursor: pointer;
+    text-decoration: underline;
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: var(--font-mono);
+  }
+
+  .toggle-instructions:hover { color: var(--accent); }
+
+  .hidden { display: none; }
+
+  /* PASSWORD gate */
+  .gate {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+
+  .gate-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2.5rem;
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+  }
+
+  .gate-title {
+    font-family: var(--font-head);
+    font-size: 1.8rem;
+    font-weight: 800;
+    margin-bottom: 0.3rem;
+    letter-spacing: -0.03em;
+  }
+
+  .gate-sub {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-bottom: 1.8rem;
+  }
+
+  .gate-input {
+    width: 100%;
+    margin-bottom: 1rem;
+    text-align: center;
+    font-size: 1rem;
+    letter-spacing: 0.1em;
+  }
+
+  .gate-error {
+    color: var(--accent2);
+    font-size: 0.75rem;
+    margin-top: 0.5rem;
+    min-height: 1.2em;
+  }
+
+  #app { display: none; }
+</style>
+</head>
+<body>
+
+<!-- PASSWORD GATE -->
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <div class="logo" style="justify-content:center;margin-bottom:0.5rem">
+      <span class="logo-dot"></span> GermWatch
+    </div>
+    <p class="gate-sub">Competitor Intelligence · DE Market</p>
+    <input type="password" id="gate-pw" class="gate-input" placeholder="Enter password" autocomplete="off">
+    <button class="btn" style="width:100%" onclick="checkPassword()">Enter</button>
+    <div class="gate-error" id="gate-err"></div>
+    <p style="font-size:0.65rem;color:var(--muted);margin-top:1.5rem">Default password: <code style="background:var(--surface2);padding:0.1rem 0.4rem;border-radius:4px;border:1px solid var(--border)">germwatch</code><br>Change it in the settings below after login.</p>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <header>
+    <div>
+      <div class="logo"><span class="logo-dot"></span> GermWatch</div>
+      <div class="header-meta" style="margin-top:0.25rem">DE Competitor Feed · Shorts Intelligence</div>
+    </div>
+    <button class="btn btn-ghost" onclick="restartBackend()" title="Shut down backend (start it again from the terminal if needed)">↻ Restart backend</button>
+    <button class="btn btn-ghost" onclick="toggleSettings()">⚙ Settings</button>
+  </header>
+
+  <div class="main">
+
+    <!-- SETTINGS PANEL -->
+    <div id="settings-panel" class="hidden">
+      <div class="setup-card" style="flex-direction:column;align-items:stretch;gap:1rem">
+        <div style="font-family:var(--font-head);font-weight:700;font-size:0.9rem">Settings</div>
+
+        <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+          <span class="setup-label">YouTube API Key</span>
+          <div class="setup-input-wrap" style="flex:1">
+            <input type="password" id="api-key-input" placeholder="AIza..." />
+          </div>
+          <button class="btn" onclick="saveApiKey()">Save Key</button>
+          <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="font-size:0.72rem;color:var(--muted);white-space:nowrap">Get a key ↗</a>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+          <span class="setup-label">Change Password</span>
+          <div class="setup-input-wrap" style="flex:1">
+            <input type="password" id="new-pw-input" placeholder="New password" />
+          </div>
+          <button class="btn btn-ghost" onclick="changePassword()">Update</button>
+        </div>
+      </div>
+
+      <button
+        id="instructions-toggle"
+        class="toggle-instructions"
+        type="button"
+        onclick="toggleInstructions()"
+      >
+        Show instructions
+      </button>
+
+      <div class="instructions hidden" id="instructions-box">
+        <h3>How to get a YouTube API Key</h3>
+        <ol>
+          <li>Go to <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a> and create a free project.</li>
+          <li>Navigate to <strong>APIs & Services → Library</strong>, search for <code>YouTube Data API v3</code>, and enable it.</li>
+          <li>Go to <strong>APIs & Services → Credentials</strong>, click <strong>Create Credentials → API Key</strong>.</li>
+          <li>Copy the key and paste it above. The free tier gives you 10,000 units/day — more than enough for this tool.</li>
+          <li>To add a channel: paste the full YouTube channel URL (e.g. <code>https://www.youtube.com/@ChannelName</code>) in the field below.</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- STATUS -->
+    <div class="status-bar" id="status-bar">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">Enter your YouTube API key in Settings to get started.</span>
+    </div>
+
+    <!-- ADD CHANNEL -->
+    <div class="section-header">
+      <span class="section-title">Tracked Channels</span>
+      <span style="font-size:0.7rem;color:var(--muted)" id="channel-count"></span>
+    </div>
+
+    <div class="add-channel-row">
+      <input type="text" id="channel-url-input" placeholder="Paste YouTube channel URL… https://www.youtube.com/@Channel" />
+      <button class="btn" onclick="addChannel()">+ Add Channel</button>
+    </div>
+
+    <div class="channels-list" id="channels-list"></div>
+
+    <!-- CHECK ORIGINAL US VIDEO -->
+    <div class="checker-card">
+      <h3>Check original US Short</h3>
+      <p style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem">Paste a US Shorts link to check if any competitor has already uploaded it. Load competitor transcripts once (after Refresh All), then you can check 20–30 US videos without rate limits.</p>
+      <div class="checker-row" style="align-items:center;margin-bottom:0.5rem">
+        <span style="font-size:0.75rem;color:var(--muted)" id="transcript-cache-status">Competitor transcripts: not loaded</span>
+        <button class="btn btn-ghost" onclick="warmTranscripts()" id="warm-transcripts-btn" style="font-size:0.75rem">Load transcripts</button>
+      </div>
+      <div id="warm-progress-wrap" class="hidden" style="margin-bottom:0.75rem">
+        <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--muted);margin-bottom:0.25rem">
+          <span id="warm-progress-text">Loading… 0 / 0</span>
+        </div>
+        <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden">
+          <div id="warm-progress-bar" style="height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width 0.3s"></div>
+        </div>
+      </div>
+      <div class="checker-row">
+        <input type="text" id="check-original-input" placeholder="Paste US Shorts URL… https://www.youtube.com/shorts/xxx or youtube.com/watch?v=xxx" />
+        <button class="btn" onclick="checkOriginalVideo()" id="check-original-btn">Check</button>
+      </div>
+      <div id="check-original-result" class="checker-result hidden"></div>
+    </div>
+
+    <!-- REFRESH -->
+    <div class="refresh-bar">
+      <div>
+        <div class="last-refresh" id="last-refresh">Not loaded yet.</div>
+        <div class="card-size-control">
+          <span>Thumbnail size</span>
+          <input
+            id="thumb-size-slider"
+            type="range"
+            min="80"
+            max="260"
+            step="10"
+            value="160"
+          >
+        </div>
+      </div>
+      <button class="btn" onclick="loadAllChannels()" id="refresh-btn">↻ Refresh All</button>
+    </div>
+
+    <!-- VIDEO FEED -->
+    <div id="feed"></div>
+
+  </div>
+</div>
+
+<!-- TRANSCRIPT MODAL -->
+<div id="transcript-modal" class="transcript-modal hidden" onclick="if(event.target===this)closeTranscriptModal()">
+  <div class="transcript-modal-content" onclick="event.stopPropagation()">
+    <div class="transcript-modal-header">
+      <span style="font-family:var(--font-head);font-weight:700">Transcript</span>
+      <button class="transcript-modal-close" onclick="closeTranscriptModal()">×</button>
+    </div>
+    <div class="transcript-modal-body" id="transcript-modal-body"></div>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const STORAGE_KEY_CHANNELS = 'germwatch_channels';
+const STORAGE_KEY_API      = 'germwatch_apikey';
+const STORAGE_KEY_PW       = 'germwatch_pw';
+const STORAGE_KEY_CARD_MIN = 'germwatch_card_min';
+const BACKEND_URL          = 'http://localhost:8001';
+
+// Competitor videos loaded in feed (for check-original)
+let loadedCompetitorVideos = [];
+
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+function checkPassword() {
+  const stored = localStorage.getItem(STORAGE_KEY_PW) || 'germwatch';
+  const entered = document.getElementById('gate-pw').value;
+  if (entered === stored) {
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    init();
+  } else {
+    document.getElementById('gate-err').textContent = 'Wrong password. Try again.';
+  }
+}
+
+document.getElementById('gate-pw').addEventListener('keydown', e => {
+  if (e.key === 'Enter') checkPassword();
+});
+
+function changePassword() {
+  const v = document.getElementById('new-pw-input').value.trim();
+  if (!v) return alert('Enter a new password.');
+  localStorage.setItem(STORAGE_KEY_PW, v);
+  document.getElementById('new-pw-input').value = '';
+  showToast('Password updated!');
+}
+
+// ─── SETTINGS ─────────────────────────────────────────────────────────────────
+function toggleSettings() {
+  const p = document.getElementById('settings-panel');
+  p.classList.toggle('hidden');
+  if (!p.classList.contains('hidden')) {
+    const key = localStorage.getItem(STORAGE_KEY_API) || '';
+    document.getElementById('api-key-input').value = key;
+  }
+}
+
+function saveApiKey() {
+  const k = document.getElementById('api-key-input').value.trim();
+  if (!k) return;
+  localStorage.setItem(STORAGE_KEY_API, k);
+  setStatus('ok', 'API key saved. Click Refresh All to load videos.');
+  showToast('API key saved!');
+}
+
+function getApiKey() { return localStorage.getItem(STORAGE_KEY_API) || ''; }
+
+async function restartBackend() {
+  if (!confirm('This will shut down the backend. Start it again from the terminal (e.g. uvicorn in the backend folder). Continue?')) return;
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/restart`, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.status === 'restarting') {
+      showToast('Backend is shutting down. Start it again from the terminal when you need it.');
+    } else {
+      showToast('Could not restart backend.');
+    }
+  } catch (e) {
+    showToast('Backend unreachable — it may already be stopped.');
+  }
+}
+
+function toggleInstructions() {
+  const box = document.getElementById('instructions-box');
+  const btn = document.getElementById('instructions-toggle');
+  if (!box || !btn) return;
+  const isHidden = box.classList.toggle('hidden');
+  btn.textContent = isHidden ? 'Show instructions' : 'Hide instructions';
+}
+
+// ─── CHECK ORIGINAL VIDEO ───────────────────────────────────────────────────
+async function updateTranscriptCacheStatus() {
+  const el = document.getElementById('transcript-cache-status');
+  if (!el) return;
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/transcripts/cache`);
+    const data = await res.json().catch(() => ({}));
+    const n = data.cached_count || 0;
+    const cachedIds = Array.isArray(data.cached_video_ids) ? data.cached_video_ids : [];
+    el.textContent = n ? `Competitor transcripts: ${n} cached (ready to check)` : 'Competitor transcripts: not loaded';
+    // Mark transcript buttons green when that video is cached
+    document.querySelectorAll('.transcript-btn[data-video-id]').forEach(btn => {
+      const id = btn.getAttribute('data-video-id');
+      btn.classList.toggle('transcript-cached', id && cachedIds.includes(id));
+    });
+  } catch {
+    el.textContent = 'Competitor transcripts: unknown (backend reachable?)';
+  }
+}
+
+let _warmPollTimer = null;
+
+function stopWarmPolling() {
+  if (_warmPollTimer) {
+    clearInterval(_warmPollTimer);
+    _warmPollTimer = null;
+  }
+}
+
+async function warmTranscripts() {
+  if (!loadedCompetitorVideos.length) {
+    showToast('Refresh the feed first (↻ Refresh All).');
+    return;
+  }
+  const btn = document.getElementById('warm-transcripts-btn');
+  const statusEl = document.getElementById('transcript-cache-status');
+  const wrap = document.getElementById('warm-progress-wrap');
+  const textEl = document.getElementById('warm-progress-text');
+  const barEl = document.getElementById('warm-progress-bar');
+  if (!btn || !statusEl || !wrap || !textEl || !barEl) return;
+  btn.disabled = true;
+  wrap.classList.remove('hidden');
+  barEl.style.width = '0%';
+  textEl.textContent = 'Starting…';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/transcripts/warm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        video_ids: loadedCompetitorVideos.map(v => v.video_id),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      statusEl.textContent = 'Competitor transcripts: load failed';
+      showToast(data.detail || 'Failed');
+      wrap.classList.add('hidden');
+      btn.disabled = false;
+      return;
+    }
+    const total = data.total || 0;
+    if (total === 0) {
+      updateTranscriptCacheStatus();
+      wrap.classList.add('hidden');
+      showToast('All transcripts already cached.');
+      btn.disabled = false;
+      return;
+    }
+    textEl.textContent = `Loading… 0 / ${total} (you’ll be notified when done)`;
+    stopWarmPolling();
+    _warmPollTimer = setInterval(async () => {
+      try {
+        const s = await fetch(`${BACKEND_URL}/api/transcripts/warm/status`).then(r => r.json()).catch(() => ({}));
+        const done = s.warmed + s.failed;
+        const tot = s.total || total;
+        const pct = tot ? Math.round((done / tot) * 100) : 100;
+        barEl.style.width = pct + '%';
+        textEl.textContent = s.in_progress
+          ? `Loading… ${done} / ${tot} (you’ll be notified when done)`
+          : `Done. ${s.warmed} loaded, ${s.failed} failed.`;
+        if (!s.in_progress) {
+          stopWarmPolling();
+          wrap.classList.add('hidden');
+          updateTranscriptCacheStatus();
+          showToast(`Finished loading transcripts. ${s.warmed} ready — you can check US videos now.`);
+          btn.disabled = false;
+        }
+      } catch (_) {}
+    }, 2000);
+  } catch (e) {
+    statusEl.textContent = 'Competitor transcripts: load failed';
+    showToast('Backend unreachable.');
+    wrap.classList.add('hidden');
+    stopWarmPolling();
+    btn.disabled = false;
+  }
+}
+
+function extractVideoId(url) {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  const shortsMatch = trimmed.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/);
+  if (shortsMatch) return shortsMatch[1];
+  const watchMatch = trimmed.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+  if (watchMatch) return watchMatch[1];
+  const youtuBeMatch = trimmed.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+  if (youtuBeMatch) return youtuBeMatch[1];
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
+  return null;
+}
+
+async function checkOriginalVideo() {
+  const input = document.getElementById('check-original-input');
+  const btn = document.getElementById('check-original-btn');
+  const resultEl = document.getElementById('check-original-result');
+  if (!input || !btn || !resultEl) return;
+
+  const url = input.value.trim();
+  const videoId = extractVideoId(url);
+  if (!videoId) {
+    resultEl.className = 'checker-result err';
+    resultEl.textContent = 'Could not extract video ID. Paste a valid YouTube URL (e.g. youtube.com/shorts/xxx or youtube.com/watch?v=xxx).';
+    resultEl.classList.remove('hidden');
+    return;
+  }
+
+  if (!loadedCompetitorVideos.length) {
+    resultEl.className = 'checker-result err';
+    resultEl.textContent = 'Load competitor channels first (click Refresh All).';
+    resultEl.classList.remove('hidden');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '…';
+  resultEl.classList.remove('hidden');
+  resultEl.className = 'checker-result loading';
+  resultEl.innerHTML = '<span class="spinner"></span> Fetching US transcript, translating, checking competitors…';
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/check-original`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        us_video_id: videoId,
+        competitor_videos: loadedCompetitorVideos.map(v => ({
+          video_id: v.video_id,
+          channel_name: v.channel_name,
+          title: v.title,
+          channel_id: v.channel_id,
+        })),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      resultEl.className = 'checker-result err';
+      resultEl.textContent = data.detail || res.statusText || 'Request failed';
+      return;
+    }
+
+    const matches = data.matches || [];
+    resultEl.className = 'checker-result ' + (matches.length ? 'err' : 'ok');
+    if (matches.length) {
+      resultEl.innerHTML = `
+        <strong style="color:var(--accent2)">⚠ Already uploaded by ${matches.length} competitor${matches.length !== 1 ? 's' : ''}</strong><br>
+        ${matches.slice(0, 5).map(m => {
+          const info = loadedCompetitorVideos.find(v => v.video_id === m.video_id);
+          return `
+          <div class="match-card">
+            <img src="${(info && info.thumb) || ''}" alt="">
+            <div class="match-info">
+              <div class="match-title">${m.title || 'Video'}</div>
+              <div class="match-channel">${m.channel_name}</div>
+              <a href="https://www.youtube.com/watch?v=${m.video_id}" target="_blank" rel="noopener">Watch ↗</a>
+            </div>
+          </div>
+        `; }).join('')}
+        ${matches.length > 5 ? `<em style="color:var(--muted)">+ ${matches.length - 5} more</em>` : ''}
+      `;
+    } else {
+      resultEl.innerHTML = `
+        <strong>No match</strong><br>
+        <span class="transcript-preview">No competitor has uploaded similar content in their last 10 videos.</span>
+      `;
+    }
+  } catch (e) {
+    resultEl.className = 'checker-result err';
+    resultEl.textContent = 'Backend unreachable. Is it running on ' + BACKEND_URL + '?';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Check';
+  }
+}
+
+async function showTranscriptModal(videoId) {
+  const modal = document.getElementById('transcript-modal');
+  const body = document.getElementById('transcript-modal-body');
+  if (!modal || !body) return;
+  modal.classList.remove('hidden');
+  body.innerHTML = '<span class="spinner"></span> Loading transcript…';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/transcript?video_id=${encodeURIComponent(videoId)}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      body.textContent = data.detail || 'Could not fetch transcript';
+      return;
+    }
+    body.textContent = data.transcript || '(Empty transcript)';
+  } catch (e) {
+    body.textContent = 'Backend unreachable.';
+  }
+}
+
+function closeTranscriptModal() {
+  const modal = document.getElementById('transcript-modal');
+  if (modal) modal.classList.add('hidden');
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeTranscriptModal();
+});
+
+// ─── CHANNELS ─────────────────────────────────────────────────────────────────
+function loadChannels() {
+  return JSON.parse(localStorage.getItem(STORAGE_KEY_CHANNELS) || '[]');
+}
+
+function saveChannels(ch) {
+  localStorage.setItem(STORAGE_KEY_CHANNELS, JSON.stringify(ch));
+}
+
+function renderChannelPills() {
+  const channels = loadChannels();
+  const list = document.getElementById('channels-list');
+  const count = document.getElementById('channel-count');
+  list.innerHTML = '';
+  count.textContent = channels.length ? `${channels.length} channel${channels.length !== 1 ? 's' : ''}` : '';
+  channels.forEach((ch, i) => {
+    const pill = document.createElement('div');
+    pill.className = 'channel-pill';
+    pill.innerHTML = `
+      <span>${ch.name || ch.url}</span>
+      <button class="pill-remove" title="Remove" onclick="removeChannel(${i})">×</button>
+    `;
+    list.appendChild(pill);
+  });
+}
+
+async function addChannel() {
+  const input = document.getElementById('channel-url-input');
+  const url = input.value.trim();
+  if (!url) return;
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    alert('Please add your YouTube API key in Settings first.');
+    return;
+  }
+
+  setStatus('', 'Resolving channel…');
+  const btn = document.querySelector('.add-channel-row .btn');
+  btn.disabled = true;
+  btn.textContent = '…';
+
+  try {
+    const info = await resolveChannel(url, apiKey);
+    const channels = loadChannels();
+    if (channels.find(c => c.channelId === info.channelId)) {
+      showToast('Channel already tracked!');
+      return;
+    }
+    channels.push(info);
+    saveChannels(channels);
+    renderChannelPills();
+    input.value = '';
+    setStatus('ok', `Added: ${info.name}`);
+    loadAllChannels();
+  } catch(e) {
+    setStatus('err', 'Could not resolve channel: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '+ Add Channel';
+  }
+}
+
+function removeChannel(i) {
+  const channels = loadChannels();
+  channels.splice(i, 1);
+  saveChannels(channels);
+  renderChannelPills();
+  loadAllChannels();
+}
+
+// ─── YOUTUBE API ──────────────────────────────────────────────────────────────
+async function resolveChannel(url, apiKey) {
+  // Extract handle or channel ID from URL
+  let handle = '';
+  let channelId = '';
+
+  const handleMatch = url.match(/@([^/?]+)/);
+  const idMatch    = url.match(/channel\/(UC[\w-]+)/);
+  const userMatch  = url.match(/\/user\/([\w.-]+)/);
+
+  if (idMatch) {
+    channelId = idMatch[1];
+  } else if (handleMatch) {
+    handle = decodeURIComponent(handleMatch[1]);
+    // use forHandle search
+    const res = await fetch(
+      `https://www.googleapis.com/youtube/v3/channels?part=snippet&forHandle=${encodeURIComponent(handle)}&key=${apiKey}`
+    );
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    if (!data.items || !data.items.length) throw new Error('Channel not found');
+    channelId = data.items[0].id;
+    const snippet = data.items[0].snippet;
+    return {
+      url, handle, channelId,
+      name: snippet.title,
+      thumb: snippet.thumbnails?.default?.url
+    };
+  } else if (userMatch) {
+    const username = userMatch[1];
+    const res = await fetch(
+      `https://www.googleapis.com/youtube/v3/channels?part=snippet&forUsername=${username}&key=${apiKey}`
+    );
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    if (!data.items || !data.items.length) throw new Error('Channel not found');
+    channelId = data.items[0].id;
+    const snippet = data.items[0].snippet;
+    return {
+      url, channelId,
+      name: snippet.title,
+      thumb: snippet.thumbnails?.default?.url
+    };
+  }
+
+  if (!channelId) throw new Error('Could not parse channel URL');
+
+  // fetch by channelId
+  const res = await fetch(
+    `https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${channelId}&key=${apiKey}`
+  );
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  if (!data.items || !data.items.length) throw new Error('Channel not found');
+  const snippet = data.items[0].snippet;
+  return {
+    url, channelId,
+    name: snippet.title,
+    thumb: snippet.thumbnails?.default?.url
+  };
+}
+
+async function getUploadsPlaylistId(channelId, apiKey) {
+  const res = await fetch(
+    `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}&key=${apiKey}`
+  );
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.items[0].contentDetails.relatedPlaylists.uploads;
+}
+
+async function getRecentVideos(playlistId, apiKey, maxResults = 10) {
+  const res = await fetch(
+    `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${playlistId}&maxResults=${maxResults}&key=${apiKey}`
+  );
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.items || [];
+}
+
+// ─── RENDER FEED ──────────────────────────────────────────────────────────────
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const hours = Math.floor(diff / 3600000);
+  if (hours < 1) return 'just now';
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  return `${weeks}w ago`;
+}
+
+function isFresh(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  return diff < 48 * 3600000; // under 48h
+}
+
+function isShort(title) {
+  return title.toLowerCase().includes('#shorts') ||
+         title.toLowerCase().includes('#short') ||
+         title.toLowerCase().includes('#kurz');
+}
+
+async function loadAllChannels() {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    setStatus('err', 'No API key set. Open Settings to add one.');
+    return;
+  }
+
+  const channels = loadChannels();
+  if (!channels.length) {
+    document.getElementById('feed').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📡</div>
+        Add your first competitor channel above to get started.
+      </div>`;
+    return;
+  }
+
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Loading…';
+  setStatus('', 'Fetching videos…');
+
+  const feed = document.getElementById('feed');
+  feed.innerHTML = '';
+  loadedCompetitorVideos = [];
+
+  let success = 0;
+
+  for (const ch of channels) {
+    const block = document.createElement('div');
+    block.className = 'channel-block';
+
+    // channel header
+    const thumbSrc = ch.thumb || '';
+    block.innerHTML = `
+      <div class="channel-name-bar">
+        ${thumbSrc ? `<img src="${thumbSrc}" class="channel-avatar" alt="">` : ''}
+        <div>
+          <div class="channel-name-text">${ch.name || ch.url}</div>
+          <div class="channel-sub">Recent 10 uploads</div>
+        </div>
+        <a class="channel-link" href="https://www.youtube.com/channel/${ch.channelId}" target="_blank">Open Channel ↗</a>
+      </div>
+      <div class="video-grid" id="grid-${ch.channelId}"></div>
+    `;
+    feed.appendChild(block);
+
+    try {
+      const playlistId = await getUploadsPlaylistId(ch.channelId, apiKey);
+      const videos = await getRecentVideos(playlistId, apiKey, 10);
+      const grid = document.getElementById(`grid-${ch.channelId}`);
+
+      if (!videos.length) {
+        grid.innerHTML = `<div style="color:var(--muted);font-size:0.8rem;padding:1rem">No videos found.</div>`;
+        continue;
+      }
+
+      videos.forEach(v => {
+        const s = v.snippet;
+        const videoId = s.resourceId.videoId;
+        const title = s.title || '';
+        const date = s.publishedAt;
+        const thumb = s.thumbnails?.medium?.url || s.thumbnails?.default?.url || '';
+        const short = isShort(title);
+        const fresh = isFresh(date);
+        const age = timeAgo(date);
+
+        loadedCompetitorVideos.push({
+          video_id: videoId,
+          channel_name: ch.name || ch.url,
+          title,
+          channel_id: ch.channelId,
+          thumb,
+        });
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'video-card';
+        wrapper.style.position = 'relative';
+        wrapper.innerHTML = `
+          <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit">
+            ${short ? '<span class="shorts-badge">SHORT</span>' : ''}
+            <img class="video-thumb" src="${thumb}" alt="" loading="lazy">
+            <div class="video-info">
+              <div class="video-title">${title}</div>
+              <div class="video-meta">
+                <span class="video-age ${fresh ? 'fresh' : ''}">${age}</span>
+              </div>
+            </div>
+          </a>
+          <button class="transcript-btn" data-video-id="${videoId}" title="View transcript" onclick="event.preventDefault();event.stopPropagation();showTranscriptModal('${videoId}')">📄</button>
+        `;
+        grid.appendChild(wrapper);
+      });
+
+      success++;
+    } catch(e) {
+      const grid = document.getElementById(`grid-${ch.channelId}`);
+      if (grid) grid.innerHTML = `<div style="color:var(--accent2);font-size:0.75rem;padding:0.5rem">Error: ${e.message}</div>`;
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = '↻ Refresh All';
+
+  const now = new Date().toLocaleTimeString();
+  document.getElementById('last-refresh').textContent = `Last refreshed at ${now}`;
+  setStatus('ok', `Loaded ${success}/${channels.length} channels.`);
+  updateTranscriptCacheStatus();
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function setStatus(type, msg) {
+  const dot = document.getElementById('status-dot');
+  const text = document.getElementById('status-text');
+  dot.className = 'status-dot' + (type ? ` ${type}` : '');
+  text.textContent = msg;
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  Object.assign(t.style, {
+    position:'fixed', bottom:'2rem', right:'2rem',
+    background:'var(--accent)', color:'#0a0a0b',
+    padding:'0.6rem 1.2rem', borderRadius:'8px',
+    fontFamily:'var(--font-head)', fontWeight:'700', fontSize:'0.8rem',
+    zIndex:'10000', animation:'fadeUp 0.3s ease',
+    boxShadow:'0 4px 20px rgba(232,255,71,0.3)'
+  });
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+function initCardSizeSlider() {
+  const slider = document.getElementById('thumb-size-slider');
+  if (!slider) return;
+
+  const stored = parseInt(localStorage.getItem(STORAGE_KEY_CARD_MIN) || '', 10);
+  const initial = !Number.isNaN(stored) ? stored : parseInt(slider.value, 10) || 200;
+
+  slider.value = String(initial);
+  document.documentElement.style.setProperty('--video-card-min', `${initial}px`);
+
+  slider.addEventListener('input', () => {
+    const v = parseInt(slider.value, 10) || 200;
+    document.documentElement.style.setProperty('--video-card-min', `${v}px`);
+    localStorage.setItem(STORAGE_KEY_CARD_MIN, String(v));
+  });
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+function init() {
+  initCardSizeSlider();
+  renderChannelPills();
+  const apiKey = getApiKey();
+  if (apiKey) {
+    setStatus('ok', 'API key loaded. Click Refresh All to load videos.');
+    loadAllChannels();
+  } else {
+    setStatus('', 'No API key set. Open Settings to add one.');
+  }
+}
+
+// auto-login check (session)
+if (sessionStorage.getItem('germwatch_authed') === '1') {
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  init();
+} else {
+  document.getElementById('gate-pw').addEventListener('keydown', e => {
+    if (e.key === 'Enter') checkPassword();
+  });
+  // patch checkPassword to set session
+  const _orig = checkPassword;
+  window.checkPassword = function() {
+    const stored = localStorage.getItem(STORAGE_KEY_PW) || 'germwatch';
+    const entered = document.getElementById('gate-pw').value;
+    if (entered === stored) {
+      sessionStorage.setItem('germwatch_authed', '1');
+    }
+    _orig();
+  };
+}
+</script>
+</body>
+</html>

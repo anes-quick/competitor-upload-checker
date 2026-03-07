@@ -1,0 +1,13 @@
+# Dependencies and env
+backend/.venv/
+backend/__pycache__/
+backend/.pytest_cache/
+.env
+.env.*
+*.pyc
+
+# Local notes (may contain API keys – keep private)
+notes
+
+# OS
+.DS_Store
