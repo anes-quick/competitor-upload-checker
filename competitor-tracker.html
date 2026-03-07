@@ -1107,8 +1107,12 @@ async function showTranscriptModal(videoId) {
   if (!modal || !body) return;
   modal.classList.remove('hidden');
   body.innerHTML = '<span class="spinner"></span> Loading transcript…';
+  const url = `${BACKEND_URL}/api/transcript?video_id=${encodeURIComponent(videoId)}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
   try {
-    const res = await fetch(`${BACKEND_URL}/api/transcript?video_id=${encodeURIComponent(videoId)}`);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       body.textContent = data.detail || 'Could not fetch transcript';
@@ -1116,7 +1120,12 @@ async function showTranscriptModal(videoId) {
     }
     body.textContent = data.transcript || '(Empty transcript)';
   } catch (e) {
-    body.textContent = 'Backend unreachable.';
+    clearTimeout(timeoutId);
+    if (e.name === 'AbortError') {
+      body.textContent = 'Request timed out (60s). The backend or proxy may be slow — try again.';
+    } else {
+      body.textContent = 'Backend unreachable. Check ' + BACKEND_URL + '/api/health in a new tab — if that fails, the backend may be down or CORS may be blocking.';
+    }
   }
 }
 
