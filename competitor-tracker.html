@@ -1122,6 +1122,8 @@ async function showTranscriptModal(videoId) {
       return;
     }
     body.textContent = data.transcript || '(Empty transcript)';
+    document.querySelectorAll(`.transcript-btn[data-video-id="${videoId}"]`).forEach(btn => btn.classList.add('transcript-cached'));
+    updateTranscriptCacheStatus();
   } catch (e) {
     clearTimeout(timeoutId);
     if (e.name === 'AbortError') {
@@ -1371,9 +1373,12 @@ async function loadAllChannels() {
         continue;
       }
 
+      const seenIds = new Set();
       videos.forEach(v => {
         const s = v.snippet;
         const videoId = s.resourceId.videoId;
+        if (seenIds.has(videoId)) return;
+        seenIds.add(videoId);
         const title = s.title || '';
         const date = s.publishedAt;
         const thumb = s.thumbnails?.medium?.url || s.thumbnails?.default?.url || '';
@@ -1422,6 +1427,7 @@ async function loadAllChannels() {
   document.getElementById('last-refresh').textContent = `Last refreshed at ${now}`;
   setStatus('ok', `Loaded ${success}/${channels.length} channels.`);
   updateTranscriptCacheStatus();
+  setTimeout(updateTranscriptCacheStatus, 1500);
 }
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
