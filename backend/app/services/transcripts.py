@@ -3,11 +3,12 @@ Service for fetching YouTube video transcripts.
 Includes an in-memory cache to avoid hitting YouTube rate limits when
 checking many US videos against the same competitor set.
 
-To avoid using your own IP (e.g. to protect your YouTube channel):
-- Run this backend on a cloud host (Railway, Render, Fly.io). All transcript
-  requests then come from the server's IP.
-- Or set YOUTUBE_TRANSCRIPT_PROXY to an HTTP(S) proxy URL so requests go
-  through that proxy (e.g. a VPN endpoint or a paid proxy service).
+Reliable option (no blocking): set FETCHTRANSCRIPT_API_KEY to use FetchTranscript.com
+API. They handle YouTube on their side; no proxy needed. See TRANSCRIPT-RELIABILITY-RESEARCH.md.
+
+Other options:
+- Run this backend on a cloud host (Railway, etc.). Transcript requests use the server's IP.
+- Or set YOUTUBE_TRANSCRIPT_PROXY so requests go through a proxy (can be flaky).
 """
 
 import os
@@ -81,22 +82,18 @@ def get_transcript_cached(video_id: str) -> Optional[dict]:
     return _cache_get(video_id)
 
 
-def get_transcript(video_id: str) -> dict:
-    """
-    Fetch transcript for a YouTube video.
+def _get_transcript_via_fetchtranscript(video_id: str, preferred_lang: Optional[str] = None) -> dict:
+    """Use FetchTranscript.com API when key is set. Raises ValueError on error."""
+    from app.services.fetchtranscript_api import fetch_transcript as ft_fetch
+    return ft_fetch(video_id, lang=preferred_lang)
 
-    Args:
-      video_id: The YouTube video ID (e.g. from youtube.com/watch?v=VIDEO_ID).
 
-    Returns:
-      dict with keys: transcript (str), language (str)
-
-    Raises:
-      ValueError: If transcript cannot be fetched (disabled, unavailable, etc.)
-    """
+def _get_transcript_via_youtube_api(video_id: str, preferred_lang: Optional[str] = None) -> dict:
+    """Use youtube-transcript-api (with optional proxy). Raises ValueError on error."""
     api = _make_api()
+    languages = ("de", "en") if preferred_lang == "de" else ("en", "de")
     try:
-        fetched = api.fetch(video_id, languages=("en", "de"))
+        fetched = api.fetch(video_id, languages=languages)
     except TranscriptsDisabled:
         raise ValueError("Transcripts are disabled for this video")
     except NoTranscriptFound:
@@ -106,19 +103,45 @@ def get_transcript(video_id: str) -> dict:
     except (IpBlocked, RequestBlocked):
         raise ValueError(
             "YouTube is temporarily blocking transcript requests from this IP (too many requests). "
-            "Wait a few minutes and try again, or try with fewer competitor videos."
+            "Wait a few minutes and try again, or set FETCHTRANSCRIPT_API_KEY for reliable transcripts."
         )
 
     if not fetched or len(fetched) == 0:
         raise ValueError("Transcript is empty")
 
-    # FetchedTranscript is iterable over snippets with .text
     text = " ".join(snippet.text for snippet in fetched)
     language = fetched.language
+    return {"transcript": text, "language": language}
 
-    result = {"transcript": text, "language": language}
+
+def get_transcript(video_id: str, preferred_lang: Optional[str] = None) -> dict:
+    """
+    Fetch transcript for a YouTube video.
+    Uses FetchTranscript.com API if FETCHTRANSCRIPT_API_KEY is set (reliable, no blocking).
+    Otherwise uses youtube-transcript-api (optional proxy via YOUTUBE_TRANSCRIPT_PROXY).
+
+    preferred_lang: optional "en" or "de" to prefer that language when available.
+
+    Returns:
+      dict with keys: transcript (str), language (str)
+
+    Raises:
+      ValueError: If transcript cannot be fetched (disabled, unavailable, etc.)
+    """
+    if (os.environ.get("FETCHTRANSCRIPT_API_KEY") or "").strip():
+        try:
+            result = _get_transcript_via_fetchtranscript(video_id, preferred_lang)
+        except ValueError:
+            raise
+        except Exception as e:
+            raise ValueError(f"FetchTranscript API error: {e!s}")
+    else:
+        result = _get_transcript_via_youtube_api(video_id, preferred_lang)
+
+    text = result["transcript"]
+    language = result["language"]
     _cache_set(video_id, text, language)
-    return result
+    return {"transcript": text, "language": language}
 
 
 def cache_stats() -> dict:

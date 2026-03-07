@@ -93,11 +93,23 @@ Initial, simpler version:
   - Add filters (e.g. show only matches / only fresh uploads).
 
 
-7) Deployment & sharing (Vercel + Railway)
------------------------------------------
+7) Deployment & sharing (Vercel + Railway) ✅ DONE
+---------------------------------------------------
 - 7.1. Frontend → Vercel (static site for competitor-tracker.html).
 - 7.2. Backend → Railway (FastAPI); CORS allows Vercel frontend origin.
 - 7.3. Sharing: give VA the Vercel frontend URL + short instructions.
 
 → Progress and step-by-step checklist: see DEPLOYMENT-PROGRESS.md
+
+
+8) Avoid YouTube blocking / zero risk (optional hardening)
+----------------------------------------------------------
+- 8.1. Current situation (already in place):
+  - Backend runs on Railway → transcript requests use Railway’s IP, not yours. Your business IP is not at risk.
+  - If YouTube rate-limits or blocks, it would be Railway’s IP, not your channel’s.
+- 8.2. Proxy (recommended if you ever see “temporarily blocking” on the live app):
+  - Backend already supports env var YOUTUBE_TRANSCRIPT_PROXY (and HTTP_PROXY / HTTPS_PROXY).
+  - In Railway: project → your service → Variables → add YOUTUBE_TRANSCRIPT_PROXY = your proxy URL (e.g. from a paid proxy or your own VPS). Redeploy. All transcript fetches then go through that proxy; no change to frontend.
+  - See backend/README.md “Avoiding YouTube blocks and protecting your IP” and TRANSCRIPT-AND-HOSTING-OPTIONS.md.
+- 8.3. Optional later: third-party transcript API (e.g. DownSub, Vizard) as an alternative backend for transcripts (costs money; no YouTube request from our side).
 

@@ -75,6 +75,14 @@ async def transcript(video_id: str = Query(..., min_length=1, description="YouTu
     return result
   except ValueError as e:
     raise HTTPException(status_code=400, detail=str(e))
+  except Exception as e:
+    err_msg = str(e)
+    if "502" in err_msg and ("roxy" in err_msg or "Gateway" in err_msg):
+      raise HTTPException(
+        status_code=502,
+        detail="Proxy returned 502 Bad Gateway. Try again in a moment, or remove YOUTUBE_TRANSCRIPT_PROXY in Railway to use direct connection (may hit YouTube limits).",
+      )
+    raise HTTPException(status_code=502, detail=f"Transcript fetch error: {err_msg[:200]}")
 
 
 async def _run_warm_task(video_ids: list[str]) -> None:
@@ -88,7 +96,7 @@ async def _run_warm_task(video_ids: list[str]) -> None:
       if not video_id or get_transcript_cached(video_id) is not None:
         continue
       try:
-        await asyncio.to_thread(get_transcript, video_id)
+        await asyncio.to_thread(get_transcript, video_id, "de")
         _warm_state["warmed"] += 1
         await asyncio.sleep(WARM_DELAY_SEC)  # only delay after a successful fetch
       except ValueError:
@@ -131,7 +139,7 @@ async def check_original(req: CheckOriginalRequest) -> dict:
   and returns fuzzy matches.
   """
   try:
-    us_result = get_transcript(req.us_video_id)
+    us_result = get_transcript(req.us_video_id, "en")
     us_text = us_result.get("transcript", "") or ""
     us_lang = us_result.get("language", "unknown")
 

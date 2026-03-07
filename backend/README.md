@@ -124,11 +124,17 @@ This foundation aligns with a typical professional FastAPI backend structure and
 
 ---
 
-## 8. Avoiding YouTube blocks and protecting your IP
+## 8. Reliable transcripts (avoid blocking)
 
-Transcript requests hit YouTube from the machine running this backend. If you run it on your own computer, that’s your IP — and too many requests can lead to temporary blocking, which you may want to avoid if you use the same IP for your YouTube channel.
+**Option A: FetchTranscript.com API (recommended for production)**
 
-**Option A: Run the backend in the cloud (recommended, free tier)**
+Set **`FETCHTRANSCRIPT_API_KEY`** in your environment (e.g. in Railway → Variables). The backend will use [FetchTranscript](https://fetchtranscript.com/) instead of scraping YouTube directly. They handle rate limits and blocking on their side; you get a stable API.
+
+- **Cost:** $1 per 1,000 calls; 25 free calls/month. Only successful calls are billed.
+- **Setup:** Sign up at fetchtranscript.com, get an API key (starts with `yt_`), add it as `FETCHTRANSCRIPT_API_KEY` in Railway (or your host), redeploy. No proxy needed.
+- See **TRANSCRIPT-RELIABILITY-RESEARCH.md** in the project root for how other SaaS products solve this.
+
+**Option B: Run the backend in the cloud (your IP not used)**
 
 Deploy this backend to a free or cheap host so **all transcript traffic uses the server’s IP**, not yours:
 
@@ -136,9 +142,9 @@ Deploy this backend to a free or cheap host so **all transcript traffic uses the
 - **Render** – New Web Service, connect repo, build: `pip install -r requirements.txt`, start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
 - **Fly.io** – Use their Python/FastAPI guide; expose the app and point the frontend to the generated URL.
 
-No code changes needed. Your business IP is never used for transcript requests.
+No code changes needed. Your business IP is never used for transcript requests. (You can still hit YouTube’s limits on the server’s IP; use Option A for reliability.)
 
-**Option B: Use a proxy (when running locally)**
+**Option C: Use a proxy (optional, can be flaky)**
 
 If you keep running the backend on your machine, you can send transcript requests through a proxy so YouTube sees the proxy’s IP instead of yours:
 

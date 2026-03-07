@@ -970,7 +970,7 @@ async function warmTranscripts() {
     if (total === 0) {
       updateTranscriptCacheStatus();
       wrap.classList.add('hidden');
-      showToast('All transcripts already cached.');
+      showToast(loadedCompetitorVideos.length ? 'All transcripts already cached.' : 'No videos to load — do Refresh All first.');
       btn.disabled = false;
       return;
     }
@@ -990,7 +990,10 @@ async function warmTranscripts() {
           stopWarmPolling();
           wrap.classList.add('hidden');
           updateTranscriptCacheStatus();
-          showToast(`Finished loading transcripts. ${s.warmed} ready — you can check US videos now.`);
+          const msg = s.warmed > 0
+            ? `Finished loading transcripts. ${s.warmed} ready — you can check US videos now.`
+            : (s.failed > 0 ? `Transcript load finished: ${s.failed} failed (proxy/YouTube may be slow or blocking). Try again later.` : 'No new transcripts loaded.');
+          showToast(msg);
           btn.disabled = false;
         }
       } catch (_) {}
