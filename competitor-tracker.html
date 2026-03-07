@@ -697,7 +697,6 @@
       <div class="logo"><span class="logo-dot"></span> GermWatch</div>
       <div class="header-meta" style="margin-top:0.25rem">DE Competitor Feed · Shorts Intelligence</div>
     </div>
-    <button class="btn btn-ghost" onclick="restartBackend()" title="Shut down backend (start it again from the terminal if needed)">↻ Restart backend</button>
     <button class="btn btn-ghost" onclick="toggleSettings()">⚙ Settings</button>
   </header>
 
@@ -766,6 +765,18 @@
 
     <div class="channels-list" id="channels-list"></div>
 
+    <!-- SAVED LIST -->
+    <div class="section-header" style="margin-top:1.5rem">
+      <span class="section-title">Saved list</span>
+      <span style="font-size:0.7rem;color:var(--muted)" id="saved-list-count"></span>
+    </div>
+    <p style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem">Add channels to a list and remove them individually.</p>
+    <div class="add-channel-row">
+      <input type="text" id="saved-list-input" placeholder="Paste channel URL to add…" />
+      <button class="btn" id="saved-list-add-btn" onclick="addToSavedList()">+ Add to list</button>
+    </div>
+    <div class="channels-list" id="saved-list"></div>
+
     <!-- CHECK ORIGINAL US VIDEO -->
     <div class="checker-card">
       <h3>Check original US Short</h3>
@@ -827,10 +838,11 @@
 
 <script>
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
-const STORAGE_KEY_CHANNELS = 'germwatch_channels';
-const STORAGE_KEY_API      = 'germwatch_apikey';
-const STORAGE_KEY_PW       = 'germwatch_pw';
-const STORAGE_KEY_CARD_MIN = 'germwatch_card_min';
+const STORAGE_KEY_CHANNELS   = 'germwatch_channels';
+const STORAGE_KEY_SAVED_LIST = 'germwatch_saved_list';
+const STORAGE_KEY_API        = 'germwatch_apikey';
+const STORAGE_KEY_PW         = 'germwatch_pw';
+const STORAGE_KEY_CARD_MIN   = 'germwatch_card_min';
 const BACKEND_URL = (typeof window !== 'undefined' && /localhost|127\.0\.0\.1/.test(window.location.hostname))
   ? 'http://localhost:8001'
   : 'https://competitor-upload-checker-production.up.railway.app';
@@ -882,21 +894,6 @@ function saveApiKey() {
 }
 
 function getApiKey() { return localStorage.getItem(STORAGE_KEY_API) || ''; }
-
-async function restartBackend() {
-  if (!confirm('This will shut down the backend. Start it again from the terminal (e.g. uvicorn in the backend folder). Continue?')) return;
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/restart`, { method: 'POST' });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data.status === 'restarting') {
-      showToast('Backend is shutting down. Start it again from the terminal when you need it.');
-    } else {
-      showToast('Could not restart backend.');
-    }
-  } catch (e) {
-    showToast('Backend unreachable — it may already be stopped.');
-  }
-}
 
 function toggleInstructions() {
   const box = document.getElementById('instructions-box');
@@ -1213,6 +1210,76 @@ function removeChannel(i) {
   loadAllChannels();
 }
 
+// ─── SAVED LIST ───────────────────────────────────────────────────────────────
+function loadSavedList() {
+  return JSON.parse(localStorage.getItem(STORAGE_KEY_SAVED_LIST) || '[]');
+}
+
+function saveSavedList(list) {
+  localStorage.setItem(STORAGE_KEY_SAVED_LIST, JSON.stringify(list));
+}
+
+function renderSavedList() {
+  const list = loadSavedList();
+  const el = document.getElementById('saved-list');
+  const countEl = document.getElementById('saved-list-count');
+  if (!el || !countEl) return;
+  el.innerHTML = '';
+  countEl.textContent = list.length ? `${list.length} item${list.length !== 1 ? 's' : ''}` : '';
+  list.forEach((item, i) => {
+    const pill = document.createElement('div');
+    pill.className = 'channel-pill';
+    pill.innerHTML = `
+      <span>${item.name || item.url || item.channelId}</span>
+      <button class="pill-remove" title="Remove" onclick="removeFromSavedList(${i})">×</button>
+    `;
+    el.appendChild(pill);
+  });
+}
+
+async function addToSavedList() {
+  const input = document.getElementById('saved-list-input');
+  const url = (input && input.value || '').trim();
+  if (!url) return;
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    alert('Please add your YouTube API key in Settings first.');
+    return;
+  }
+
+  setStatus('', 'Resolving channel…');
+  const btn = document.getElementById('saved-list-add-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+
+  try {
+    const info = await resolveChannel(url, apiKey);
+    const list = loadSavedList();
+    if (list.some(e => e.channelId === info.channelId)) {
+      showToast('Already in saved list.');
+      return;
+    }
+    list.push({ channelId: info.channelId, name: info.name, url: info.url });
+    saveSavedList(list);
+    renderSavedList();
+    if (input) input.value = '';
+    setStatus('ok', `Added to list: ${info.name}`);
+    showToast(`Added: ${info.name}`);
+  } catch (e) {
+    setStatus('err', 'Could not resolve channel: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '+ Add to list'; }
+  }
+}
+
+function removeFromSavedList(i) {
+  const list = loadSavedList();
+  list.splice(i, 1);
+  saveSavedList(list);
+  renderSavedList();
+  setStatus('ok', 'Removed from saved list.');
+}
+
 // ─── YOUTUBE API ──────────────────────────────────────────────────────────────
 async function resolveChannel(url, apiKey) {
   // Extract handle or channel ID from URL
@@ -1474,6 +1541,7 @@ function initCardSizeSlider() {
 function init() {
   initCardSizeSlider();
   renderChannelPills();
+  renderSavedList();
   const apiKey = getApiKey();
   if (apiKey) {
     setStatus('ok', 'API key loaded. Click Refresh All to load videos.');
