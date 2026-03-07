@@ -77,7 +77,7 @@ Use this file to track where we are and what’s next. Update the checkboxes and
 
 | What     | URL |
 |----------|-----|
-| Backend  | `https://_______________.up.railway.app` |
+| Backend  | `https://competitor-upload-checker-production.up.railway.app` |
 | Frontend | `https://_______________.vercel.app` |
 
 ---

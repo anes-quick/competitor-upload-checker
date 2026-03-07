@@ -831,7 +831,9 @@ const STORAGE_KEY_CHANNELS = 'germwatch_channels';
 const STORAGE_KEY_API      = 'germwatch_apikey';
 const STORAGE_KEY_PW       = 'germwatch_pw';
 const STORAGE_KEY_CARD_MIN = 'germwatch_card_min';
-const BACKEND_URL          = 'http://localhost:8001';
+const BACKEND_URL = (typeof window !== 'undefined' && /localhost|127\.0\.0\.1/.test(window.location.hostname))
+  ? 'http://localhost:8001'
+  : 'https://competitor-upload-checker-production.up.railway.app';
 
 // Competitor videos loaded in feed (for check-original)
 let loadedCompetitorVideos = [];
