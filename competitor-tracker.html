@@ -413,6 +413,11 @@
     transform: translateY(-3px);
   }
 
+  .video-card.video-card--match {
+    border: 2px solid var(--accent2);
+    box-shadow: 0 0 0 1px var(--accent2);
+  }
+
   .video-thumb {
     width: 100%;
     aspect-ratio: 9/16;
@@ -897,6 +902,15 @@ function extractVideoId(url) {
   return null;
 }
 
+function highlightMatchCards(videoIds) {
+  document.querySelectorAll('.video-card--match').forEach(el => el.classList.remove('video-card--match'));
+  if (!videoIds || !videoIds.length) return;
+  const idSet = new Set(videoIds);
+  document.querySelectorAll('.video-card[data-video-id]').forEach(card => {
+    if (idSet.has(card.dataset.videoId)) card.classList.add('video-card--match');
+  });
+}
+
 async function checkOriginalVideo() {
   const input = document.getElementById('check-original-input');
   const btn = document.getElementById('check-original-btn');
@@ -909,6 +923,7 @@ async function checkOriginalVideo() {
     resultEl.className = 'checker-result err';
     resultEl.textContent = 'Could not extract video ID. Paste a valid YouTube URL (e.g. youtube.com/shorts/xxx or youtube.com/watch?v=xxx).';
     resultEl.classList.remove('hidden');
+    highlightMatchCards([]);
     return;
   }
 
@@ -916,6 +931,7 @@ async function checkOriginalVideo() {
     resultEl.className = 'checker-result err';
     resultEl.textContent = 'Load competitor channels first (click Refresh All).';
     resultEl.classList.remove('hidden');
+    highlightMatchCards([]);
     return;
   }
 
@@ -944,11 +960,13 @@ async function checkOriginalVideo() {
     if (!res.ok) {
       resultEl.className = 'checker-result err';
       resultEl.textContent = data.detail || res.statusText || 'Request failed';
+      highlightMatchCards([]);
       return;
     }
 
     const matches = data.matches || [];
     resultEl.className = 'checker-result ' + (matches.length ? 'err' : 'ok');
+    highlightMatchCards(matches.length ? matches.map(m => m.video_id) : []);
     if (matches.length) {
       resultEl.innerHTML = `
         <strong style="color:var(--accent2)">⚠ Already uploaded by ${matches.length} competitor${matches.length !== 1 ? 's' : ''}</strong><br>
@@ -975,6 +993,7 @@ async function checkOriginalVideo() {
   } catch (e) {
     resultEl.className = 'checker-result err';
     resultEl.textContent = 'Backend unreachable. Is it running on ' + BACKEND_URL + '?';
+    highlightMatchCards([]);
   } finally {
     btn.disabled = false;
     btn.textContent = 'Check';
@@ -1279,6 +1298,7 @@ async function loadAllChannels() {
 
         const wrapper = document.createElement('div');
         wrapper.className = 'video-card';
+        wrapper.dataset.videoId = videoId;
         wrapper.style.position = 'relative';
         wrapper.innerHTML = `
           <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit">

@@ -46,7 +46,7 @@ def similarity(a: str, b: str) -> float:
 def find_matches(
     source_text: str,
     candidates: list[dict],
-    threshold: float = 0.12,
+    threshold: float = 0.17,
 ) -> list[dict]:
     """
     Find competitor videos whose transcript is similar to the source (translated US).
