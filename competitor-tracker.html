@@ -1195,7 +1195,12 @@ function isShort(title) {
          title.toLowerCase().includes('#kurz');
 }
 
+let loadAllChannelsInProgress = false;
+
 async function loadAllChannels() {
+  if (loadAllChannelsInProgress) return;
+  loadAllChannelsInProgress = true;
+  try {
   const channels = loadChannels();
   if (!channels.length) {
     document.getElementById('feed').innerHTML = `
@@ -1203,6 +1208,7 @@ async function loadAllChannels() {
         <div class="empty-icon">📡</div>
         Add your first competitor channel above to get started.
       </div>`;
+    loadAllChannelsInProgress = false;
     return;
   }
 
@@ -1305,6 +1311,9 @@ async function loadAllChannels() {
   setStatus('ok', `Loaded ${success}/${channels.length} channels.`);
   updateTranscriptCacheStatus();
   setTimeout(updateTranscriptCacheStatus, 1500);
+  } finally {
+    loadAllChannelsInProgress = false;
+  }
 }
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────

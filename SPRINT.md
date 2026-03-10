@@ -11,7 +11,7 @@ Track improvements and versions (1.1, 1.2, …). Check off when done.
 | 1 | Move API key to backend (set once in Railway, no key in frontend) | ✅ |
 | 2 | Improve accuracy for checking | 🔲 |
 | 3 | Colored red box around similar videos | 🔲 |
-| 4 | Fix double amount of videos issue | 🔲 |
+| 4 | Fix double amount of videos issue | ✅ |
 | 5 | Remove password entry (make it one-time only) | ✅ |
 
 ---
