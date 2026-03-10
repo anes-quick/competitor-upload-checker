@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GermWatch — Competitor Feed</title>
+<link id="favicon-link" rel="icon" type="image/png" href="favicon standard.png">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -829,6 +830,7 @@ async function warmTranscripts() {
   const barEl = document.getElementById('warm-progress-bar');
   if (!btn || !statusEl || !wrap || !textEl || !barEl) return;
   btn.disabled = true;
+  setFavicon('loading');
   wrap.classList.remove('hidden');
   barEl.style.width = '0%';
   textEl.textContent = 'Starting…';
@@ -846,6 +848,7 @@ async function warmTranscripts() {
       showToast(data.detail || 'Failed');
       wrap.classList.add('hidden');
       btn.disabled = false;
+      setFavicon('normal');
       return;
     }
     const total = data.total || 0;
@@ -854,6 +857,7 @@ async function warmTranscripts() {
       wrap.classList.add('hidden');
       showToast(loadedCompetitorVideos.length ? 'All transcripts already cached.' : 'No videos to load — do Refresh All first.');
       btn.disabled = false;
+      setFavicon('normal');
       return;
     }
     textEl.textContent = `Loading… 0 / ${total} (you’ll be notified when done)`;
@@ -877,6 +881,7 @@ async function warmTranscripts() {
             : (s.failed > 0 ? `Transcript load finished: ${s.failed} failed (proxy/YouTube may be slow or blocking). Try again later.` : 'No new transcripts loaded.');
           showToast(msg);
           btn.disabled = false;
+          setFavicon('normal');
         }
       } catch (_) {}
     }, 2000);
@@ -886,6 +891,7 @@ async function warmTranscripts() {
     wrap.classList.add('hidden');
     stopWarmPolling();
     btn.disabled = false;
+    setFavicon('normal');
   }
 }
 
@@ -1342,6 +1348,16 @@ function setStatus(type, msg) {
   const text = document.getElementById('status-text');
   dot.className = 'status-dot' + (type ? ` ${type}` : '');
   text.textContent = msg;
+}
+
+function setFavicon(kind) {
+  const link = document.getElementById('favicon-link');
+  if (!link) return;
+  if (kind === 'loading') {
+    link.href = 'favicon loading.png';
+  } else {
+    link.href = 'favicon standard.png';
+  }
 }
 
 function showToast(msg) {
