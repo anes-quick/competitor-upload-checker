@@ -707,14 +707,7 @@
       <div class="setup-card" style="flex-direction:column;align-items:stretch;gap:1rem">
         <div style="font-family:var(--font-head);font-weight:700;font-size:0.9rem">Settings</div>
 
-        <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-          <span class="setup-label">YouTube API Key</span>
-          <div class="setup-input-wrap" style="flex:1">
-            <input type="password" id="api-key-input" placeholder="AIza..." />
-          </div>
-          <button class="btn" onclick="saveApiKey()">Save Key</button>
-          <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="font-size:0.72rem;color:var(--muted);white-space:nowrap">Get a key ↗</a>
-        </div>
+        <p style="font-size:0.8rem;color:var(--muted)">YouTube API key is set on the server (Railway env <code>YOUTUBE_API_KEY</code>). No need to enter it here.</p>
 
         <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
           <span class="setup-label">Change Password</span>
@@ -737,10 +730,8 @@
       <div class="instructions hidden" id="instructions-box">
         <h3>How to get a YouTube API Key</h3>
         <ol>
-          <li>Go to <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a> and create a free project.</li>
-          <li>Navigate to <strong>APIs & Services → Library</strong>, search for <code>YouTube Data API v3</code>, and enable it.</li>
-          <li>Go to <strong>APIs & Services → Credentials</strong>, click <strong>Create Credentials → API Key</strong>.</li>
-          <li>Copy the key and paste it above. The free tier gives you 10,000 units/day — more than enough for this tool.</li>
+          <li>Get a key from <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a> (YouTube Data API v3).</li>
+          <li>Add it as <code>YOUTUBE_API_KEY</code> in your backend (e.g. Railway → Variables). The free tier gives 10,000 units/day.</li>
           <li>To add a channel: paste the full YouTube channel URL (e.g. <code>https://www.youtube.com/@ChannelName</code>) in the field below.</li>
         </ol>
       </div>
@@ -749,7 +740,7 @@
     <!-- STATUS -->
     <div class="status-bar" id="status-bar">
       <div class="status-dot" id="status-dot"></div>
-      <span id="status-text">Enter your YouTube API key in Settings to get started.</span>
+      <span id="status-text">Add channels and click Refresh All to load videos.</span>
     </div>
 
     <!-- ADD CHANNEL -->
@@ -834,7 +825,6 @@
 const STORAGE_KEY_CHANNELS     = 'germwatch_channels';
 const STORAGE_KEY_RECENT       = 'germwatch_recent_channels';
 const MAX_RECENT_CHANNELS      = 25;
-const STORAGE_KEY_API          = 'germwatch_apikey';
 const STORAGE_KEY_PW           = 'germwatch_pw';
 const STORAGE_KEY_CARD_MIN     = 'germwatch_card_min';
 const BACKEND_URL = (typeof window !== 'undefined' && /localhost|127\.0\.0\.1/.test(window.location.hostname))
@@ -873,21 +863,7 @@ function changePassword() {
 function toggleSettings() {
   const p = document.getElementById('settings-panel');
   p.classList.toggle('hidden');
-  if (!p.classList.contains('hidden')) {
-    const key = localStorage.getItem(STORAGE_KEY_API) || '';
-    document.getElementById('api-key-input').value = key;
-  }
 }
-
-function saveApiKey() {
-  const k = document.getElementById('api-key-input').value.trim();
-  if (!k) return;
-  localStorage.setItem(STORAGE_KEY_API, k);
-  setStatus('ok', 'API key saved. Click Refresh All to load videos.');
-  showToast('API key saved!');
-}
-
-function getApiKey() { return localStorage.getItem(STORAGE_KEY_API) || ''; }
 
 function toggleInstructions() {
   const box = document.getElementById('instructions-box');
@@ -1172,19 +1148,13 @@ async function addChannel() {
   const url = input.value.trim();
   if (!url) return;
 
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    alert('Please add your YouTube API key in Settings first.');
-    return;
-  }
-
   setStatus('', 'Resolving channel…');
   const btn = document.querySelector('.add-channel-row .btn');
   btn.disabled = true;
   btn.textContent = '…';
 
   try {
-    const info = await resolveChannel(url, apiKey);
+    const info = await resolveChannel(url);
     const channels = loadChannels();
     if (channels.find(c => c.channelId === info.channelId)) {
       showToast('Channel already tracked!');
@@ -1292,84 +1262,12 @@ function addBackFromRecent(channelId) {
   showToast(`Added: ${ch.name || ch.channelId}`);
 }
 
-// ─── YOUTUBE API ──────────────────────────────────────────────────────────────
-async function resolveChannel(url, apiKey) {
-  // Extract handle or channel ID from URL
-  let handle = '';
-  let channelId = '';
-
-  const handleMatch = url.match(/@([^/?]+)/);
-  const idMatch    = url.match(/channel\/(UC[\w-]+)/);
-  const userMatch  = url.match(/\/user\/([\w.-]+)/);
-
-  if (idMatch) {
-    channelId = idMatch[1];
-  } else if (handleMatch) {
-    handle = decodeURIComponent(handleMatch[1]);
-    // use forHandle search
-    const res = await fetch(
-      `https://www.googleapis.com/youtube/v3/channels?part=snippet&forHandle=${encodeURIComponent(handle)}&key=${apiKey}`
-    );
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    if (!data.items || !data.items.length) throw new Error('Channel not found');
-    channelId = data.items[0].id;
-    const snippet = data.items[0].snippet;
-    return {
-      url, handle, channelId,
-      name: snippet.title,
-      thumb: snippet.thumbnails?.default?.url
-    };
-  } else if (userMatch) {
-    const username = userMatch[1];
-    const res = await fetch(
-      `https://www.googleapis.com/youtube/v3/channels?part=snippet&forUsername=${username}&key=${apiKey}`
-    );
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    if (!data.items || !data.items.length) throw new Error('Channel not found');
-    channelId = data.items[0].id;
-    const snippet = data.items[0].snippet;
-    return {
-      url, channelId,
-      name: snippet.title,
-      thumb: snippet.thumbnails?.default?.url
-    };
-  }
-
-  if (!channelId) throw new Error('Could not parse channel URL');
-
-  // fetch by channelId
-  const res = await fetch(
-    `https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${channelId}&key=${apiKey}`
-  );
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  if (!data.items || !data.items.length) throw new Error('Channel not found');
-  const snippet = data.items[0].snippet;
-  return {
-    url, channelId,
-    name: snippet.title,
-    thumb: snippet.thumbnails?.default?.url
-  };
-}
-
-async function getUploadsPlaylistId(channelId, apiKey) {
-  const res = await fetch(
-    `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}&key=${apiKey}`
-  );
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  return data.items[0].contentDetails.relatedPlaylists.uploads;
-}
-
-async function getRecentVideos(playlistId, apiKey, maxResults = 10) {
-  const res = await fetch(
-    `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${playlistId}&maxResults=${maxResults}&key=${apiKey}`
-  );
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  return data.items || [];
+// ─── YOUTUBE (via backend; API key on server) ────────────────────────────────────
+async function resolveChannel(url) {
+  const res = await fetch(`${BACKEND_URL}/api/youtube/resolve-channel?url=${encodeURIComponent(url)}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || data.message || 'Could not resolve channel');
+  return data;
 }
 
 // ─── RENDER FEED ──────────────────────────────────────────────────────────────
@@ -1396,12 +1294,6 @@ function isShort(title) {
 }
 
 async function loadAllChannels() {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    setStatus('err', 'No API key set. Open Settings to add one.');
-    return;
-  }
-
   const channels = loadChannels();
   if (!channels.length) {
     document.getElementById('feed').innerHTML = `
@@ -1443,8 +1335,12 @@ async function loadAllChannels() {
     feed.appendChild(block);
 
     try {
-      const playlistId = await getUploadsPlaylistId(ch.channelId, apiKey);
-      const videos = await getRecentVideos(playlistId, apiKey, 10);
+      const res = await fetch(`${BACKEND_URL}/api/youtube/channels/${encodeURIComponent(ch.channelId)}/recent-videos?max_results=10`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.detail || data.message || 'Failed to load videos');
+      }
+      const videos = data.items || [];
       const grid = document.getElementById(`grid-${ch.channelId}`);
 
       if (!videos.length) {
@@ -1553,12 +1449,12 @@ function initCardSizeSlider() {
 function init() {
   initCardSizeSlider();
   renderChannelPills();
-  const apiKey = getApiKey();
-  if (apiKey) {
-    setStatus('ok', 'API key loaded. Click Refresh All to load videos.');
+  const channels = loadChannels();
+  if (channels.length) {
+    setStatus('ok', 'Click Refresh All to load videos.');
     loadAllChannels();
   } else {
-    setStatus('', 'No API key set. Open Settings to add one.');
+    setStatus('', 'Add channels and click Refresh All to load videos.');
   }
 }
 

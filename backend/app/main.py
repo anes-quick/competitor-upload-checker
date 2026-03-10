@@ -3,6 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api import router as api_router
 
+try:
+  from dotenv import load_dotenv
+  load_dotenv()
+except Exception:
+  # If python-dotenv isn't installed, we just rely on real env vars (Railway, shell, etc.)
+  pass
+
 
 def create_app() -> FastAPI:
   """

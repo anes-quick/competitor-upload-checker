@@ -12,6 +12,7 @@ from app.services.transcripts import (
 )
 from app.services.translate import translate_to_german
 from app.services.matching import find_matches
+from app.services import youtube_data as yt
 
 
 router = APIRouter()
@@ -47,6 +48,31 @@ async def health() -> dict:
   Useful for uptime checks and verifying deployments.
   """
   return {"status": "ok"}
+
+
+# ─── YouTube Data API proxy (API key on backend only) ───────────────────────────
+
+@router.get("/youtube/resolve-channel", tags=["youtube"])
+async def youtube_resolve_channel(url: str = Query(..., min_length=1)) -> dict:
+  """Resolve a channel URL to channelId, name, thumb. Uses backend YOUTUBE_API_KEY."""
+  try:
+    return await asyncio.to_thread(yt.resolve_channel, url)
+  except ValueError as e:
+    raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/youtube/channels/{channel_id}/recent-videos", tags=["youtube"])
+async def youtube_recent_videos(
+  channel_id: str,
+  max_results: int = Query(10, ge=1, le=50),
+) -> dict:
+  """Get recent uploads for a channel. Returns playlistItems (snippet) list."""
+  try:
+    playlist_id = await asyncio.to_thread(yt.get_uploads_playlist_id, channel_id)
+    items = await asyncio.to_thread(yt.get_recent_videos, playlist_id, max_results)
+    return {"items": items}
+  except ValueError as e:
+    raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/restart", tags=["system"])

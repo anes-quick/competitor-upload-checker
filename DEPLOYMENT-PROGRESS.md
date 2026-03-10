@@ -24,7 +24,10 @@ Use this file to track where we are and what’s next. Update the checkboxes and
   - Build command: e.g. leave default or `pip install -r requirements.txt` if needed.
   - Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
   - If backend lives in `backend/`: set **Root Directory** to `backend` in Railway, so start stays `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
-- [x] **4.** Add **Environment variables** in Railway if needed (e.g. `YOUTUBE_TRANSCRIPT_PROXY` only if using a proxy).
+- [x] **4.** Add **Environment variables** in Railway:
+  - **YOUTUBE_API_KEY** (required) — for adding channels and loading recent videos. Get from [Google Cloud Console](https://console.cloud.google.com/apis/credentials) (YouTube Data API v3).
+  - **YOUTUBE_TRANSCRIPT_PROXY** (optional) — only if using a proxy for transcripts.
+  - **FETCHTRANSCRIPT_API_KEY** (optional) — if using FetchTranscript.com for reliable transcripts.
 - [x] **5.** Deploy and get the public URL (e.g. `https://your-app.up.railway.app`). Note it as **BACKEND_URL** for frontend.
 - [x] **6.** Test: open `https://<BACKEND_URL>/api/health` → should return `{"status":"ok"}`.
 
