@@ -12,7 +12,7 @@ Track improvements and versions (1.1, 1.2, …). Check off when done.
 | 2 | Improve accuracy for checking | 🔲 |
 | 3 | Colored red box around similar videos | 🔲 |
 | 4 | Fix double amount of videos issue | 🔲 |
-| 5 | Remove password entry (make it one-time only) | 🔲 |
+| 5 | Remove password entry (make it one-time only) | ✅ |
 
 ---
 
