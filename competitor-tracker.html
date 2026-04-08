@@ -684,6 +684,7 @@
     <div class="section-header" style="flex-wrap:wrap;gap:0.5rem">
       <span class="section-title">Tracked Channels</span>
       <span style="font-size:0.7rem;color:var(--muted)" id="channel-count"></span>
+      <button type="button" class="btn btn-ghost" id="save-workflow-channels-btn" onclick="saveWorkflowChannels()" style="font-size:0.75rem" title="Save this channel set for Sentence Match Workflow cron checks">⇪ Save for Workflow</button>
       <button type="button" class="btn btn-ghost" id="recent-channels-btn" onclick="toggleRecentChannels()" style="font-size:0.75rem;margin-left:auto" title="Recently removed — click to add back">↶ Recent</button>
     </div>
     <div id="recent-channels-panel" class="hidden" style="margin-bottom:0.75rem;padding:0.75rem;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
@@ -1074,6 +1075,37 @@ async function syncTrackedChannelsToBackend(channels) {
     });
   } catch (_) {
     // Silent: UI should still work if backend sync is temporarily unavailable.
+  }
+}
+
+async function saveWorkflowChannels() {
+  const btn = document.getElementById('save-workflow-channels-btn');
+  const channels = loadChannels();
+  if (!channels.length) {
+    showToast('No channels to save.');
+    return;
+  }
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/integration/workflow-channels`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channels: channels.map(c => ({
+          channel_id: c.channelId,
+          name: c.name || '',
+          url: c.url || '',
+          thumb: c.thumb || '',
+        })),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || 'Could not save workflow channels');
+    showToast(`Saved ${data.count || channels.length} channels for workflow cron.`);
+  } catch (e) {
+    showToast('Save failed: ' + (e.message || 'unknown error'));
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 

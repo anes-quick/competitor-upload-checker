@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import os
+import json
+from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, Header
 from pydantic import BaseModel
 
@@ -55,6 +57,7 @@ class TrackedChannelsRequest(BaseModel):
     channels: list[TrackedChannel]
 
 _tracked_channels: list[dict] = []
+_WORKFLOW_CHANNELS_FILE = Path(__file__).resolve().parent.parent / "data" / "workflow_channels.json"
 
 
 def _require_cron_secret(x_cron_secret: str) -> None:
@@ -78,7 +81,16 @@ def _channel_ids_from_env() -> list[str]:
 
 
 def _channel_ids_for_cron() -> list[str]:
-  # Prefer channels synced from frontend; fallback to env list.
+  # Prefer explicitly saved workflow channels; then synced channels; then env fallback.
+  workflow = _load_workflow_channels()
+  ids = []
+  for ch in workflow:
+    cid = (ch.get("channel_id") or "").strip()
+    if cid and cid not in ids:
+      ids.append(cid)
+  if ids:
+    return ids
+
   ids = []
   for ch in _tracked_channels:
     cid = (ch.get("channel_id") or "").strip()
@@ -87,6 +99,36 @@ def _channel_ids_for_cron() -> list[str]:
   if ids:
     return ids
   return _channel_ids_from_env()
+
+
+def _load_workflow_channels() -> list[dict]:
+  try:
+    if not _WORKFLOW_CHANNELS_FILE.exists():
+      return []
+    raw = json.loads(_WORKFLOW_CHANNELS_FILE.read_text(encoding="utf-8"))
+    if not isinstance(raw, list):
+      return []
+    out = []
+    for ch in raw:
+      if not isinstance(ch, dict):
+        continue
+      cid = str(ch.get("channel_id") or "").strip()
+      if not cid:
+        continue
+      out.append({
+        "channel_id": cid,
+        "name": str(ch.get("name") or "").strip(),
+        "url": str(ch.get("url") or "").strip(),
+        "thumb": str(ch.get("thumb") or "").strip(),
+      })
+    return out
+  except Exception:
+    return []
+
+
+def _save_workflow_channels(channels: list[dict]) -> None:
+  _WORKFLOW_CHANNELS_FILE.parent.mkdir(parents=True, exist_ok=True)
+  _WORKFLOW_CHANNELS_FILE.write_text(json.dumps(channels, ensure_ascii=True), encoding="utf-8")
 
 
 @router.get("/health", tags=["system"])
@@ -127,6 +169,35 @@ async def set_tracked_channels(req: TrackedChannelsRequest) -> dict:
 async def get_tracked_channels() -> dict:
   """Return currently synced tracked channels used by cron warmups."""
   return {"channels": list(_tracked_channels), "count": len(_tracked_channels)}
+
+
+@router.put("/integration/workflow-channels", tags=["integration"])
+async def set_workflow_channels(req: TrackedChannelsRequest) -> dict:
+  """
+  Persist shared workflow channel set used by cron warmups.
+  This is independent from each user's local channel list.
+  """
+  clean = []
+  seen = set()
+  for ch in req.channels:
+    cid = (ch.channel_id or "").strip()
+    if not cid or cid in seen:
+      continue
+    seen.add(cid)
+    clean.append({
+      "channel_id": cid,
+      "name": (ch.name or "").strip(),
+      "url": (ch.url or "").strip(),
+      "thumb": (ch.thumb or "").strip(),
+    })
+  _save_workflow_channels(clean)
+  return {"status": "ok", "count": len(clean)}
+
+
+@router.get("/integration/workflow-channels", tags=["integration"])
+async def get_workflow_channels() -> dict:
+  channels = _load_workflow_channels()
+  return {"channels": channels, "count": len(channels)}
 
 
 # ─── YouTube Data API proxy (API key on backend only) ───────────────────────────
