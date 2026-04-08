@@ -47,12 +47,18 @@ If the project is **not** on GitHub yet:
 
 ---
 
-## 4. Environment variables (optional)
+## 4. Environment variables
 
 - In the same service, open **Variables** (or “Environment”).
-- Add variables only if you need them, for example:
-  - `YOUTUBE_TRANSCRIPT_PROXY` = your proxy URL (only if you use a proxy).
-- Nothing else is required for the app to run.
+- Common variables:
+  - `YOUTUBE_API_KEY` = YouTube Data API key (for loading channel videos)
+  - `TRANSCRIPTAPI_API_KEY` = primary transcript provider
+  - `FETCHTRANSCRIPT_API_KEY` = transcript fallback provider
+  - `YOUTUBE_TRANSCRIPT_PROXY` = optional proxy URL
+- For Railway cron warmup automation, also add:
+  - `CRON_SECRET` = random secret string
+  - `TRACKED_CHANNEL_IDS` = comma-separated channel IDs (e.g. `UCxxx,UCyyy,UCzzz`)
+  - `CRON_RECENT_UPLOADS_PER_CHANNEL` = optional per-channel count (e.g. `5`)
 
 ---
 
@@ -81,6 +87,13 @@ You should see:
 
 ```json
 {"status":"ok"}
+```
+
+For cron warm trigger (manual test):
+
+```bash
+curl -X POST "https://YOUR-RAILWAY-URL/api/cron/warm-transcripts" \
+  -H "X-Cron-Secret: YOUR_CRON_SECRET"
 ```
 
 If that works, the backend is set up correctly.

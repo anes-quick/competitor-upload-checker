@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Header
 from pydantic import BaseModel
 
 from app.services.transcripts import (
@@ -44,6 +44,26 @@ class IntegrationCheckTextRequest(BaseModel):
     competitor_videos: list[CompetitorVideo]
     source_video_url: str | None = None
     source_title: str | None = None
+
+
+def _require_cron_secret(x_cron_secret: str | None) -> None:
+  expected = (os.environ.get("CRON_SECRET") or "").strip()
+  if not expected:
+    raise HTTPException(status_code=500, detail="CRON_SECRET is not configured")
+  if (x_cron_secret or "").strip() != expected:
+    raise HTTPException(status_code=401, detail="Invalid cron secret")
+
+
+def _channel_ids_from_env() -> list[str]:
+  raw = (os.environ.get("TRACKED_CHANNEL_IDS") or "").strip()
+  if not raw:
+    return []
+  out = []
+  for part in raw.split(","):
+    v = part.strip()
+    if v:
+      out.append(v)
+  return out
 
 
 @router.get("/health", tags=["system"])
@@ -148,6 +168,59 @@ async def warm_transcripts(req: WarmRequest) -> dict:
   to_fetch = [v for v in req.video_ids if v and get_transcript_cached(v) is None]
   asyncio.create_task(_run_warm_task(req.video_ids))
   return {"status": "started", "total": len(to_fetch)}
+
+
+@router.post("/cron/warm-transcripts", tags=["system"])
+async def cron_warm_transcripts(
+  x_cron_secret: str | None = Header(default=None),
+  max_results: int = Query(5, ge=1, le=20),
+) -> dict:
+  """
+  Trigger transcript warming from configured channel IDs.
+
+  Required env vars:
+  - CRON_SECRET: secret checked against X-Cron-Secret header
+  - TRACKED_CHANNEL_IDS: comma-separated YouTube channel IDs (UC...)
+  """
+  _require_cron_secret(x_cron_secret)
+
+  if _warm_state.get("in_progress"):
+    return {"status": "already_running", "total": _warm_state["total"], "warmed": _warm_state["warmed"], "failed": _warm_state["failed"]}
+
+  channel_ids = _channel_ids_from_env()
+  if not channel_ids:
+    raise HTTPException(status_code=400, detail="TRACKED_CHANNEL_IDS is empty")
+
+  # Allow env override while keeping query parameter available.
+  env_mr = (os.environ.get("CRON_RECENT_UPLOADS_PER_CHANNEL") or "").strip()
+  if env_mr.isdigit():
+    max_results = max(1, min(20, int(env_mr)))
+
+  video_ids: list[str] = []
+  seen = set()
+  for channel_id in channel_ids:
+    try:
+      playlist_id = await asyncio.to_thread(yt.get_uploads_playlist_id, channel_id)
+      items = await asyncio.to_thread(yt.get_recent_videos, playlist_id, max_results)
+      for item in items:
+        vid = ((item.get("snippet") or {}).get("resourceId") or {}).get("videoId")
+        if not vid or vid in seen:
+          continue
+        seen.add(vid)
+        video_ids.append(vid)
+    except Exception:
+      # Keep going even if one channel fails.
+      continue
+
+  to_fetch = [v for v in video_ids if v and get_transcript_cached(v) is None]
+  asyncio.create_task(_run_warm_task(video_ids))
+  return {
+    "status": "started",
+    "channels": len(channel_ids),
+    "videos_found": len(video_ids),
+    "to_fetch": len(to_fetch),
+    "max_results_per_channel": max_results,
+  }
 
 
 @router.get("/transcripts/warm/status", tags=["transcripts"])
