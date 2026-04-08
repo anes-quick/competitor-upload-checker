@@ -4,6 +4,7 @@ import asyncio
 import os
 import json
 from pathlib import Path
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, Header
 from pydantic import BaseModel
 
