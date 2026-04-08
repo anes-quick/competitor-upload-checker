@@ -1,0 +1,37 @@
+name: Cron Warm Transcripts
+
+on:
+  schedule:
+    # 06:30 and 14:30 CEST (summer) => 04:30 and 12:30 UTC
+    - cron: "30 4,12 * * *"
+  workflow_dispatch:
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger backend warm (attempt 1)
+        id: warm1
+        continue-on-error: true
+        env:
+          WARM_URL: ${{ secrets.CRON_WARM_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WARM_URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
+            echo "CRON_WARM_URL or CRON_SECRET secret is missing"
+            exit 1
+          fi
+          curl -f -sS -X POST "${WARM_URL}" -H "X-Cron-Secret: ${CRON_SECRET}"
+
+      - name: Retry warm once on failure
+        if: steps.warm1.outcome == 'failure'
+        env:
+          WARM_URL: ${{ secrets.CRON_WARM_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          echo "First attempt failed, retrying once after 30s..."
+          sleep 30
+          curl -f -sS -X POST "${WARM_URL}" -H "X-Cron-Secret: ${CRON_SECRET}"
