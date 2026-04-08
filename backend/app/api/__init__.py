@@ -57,7 +57,7 @@ class TrackedChannelsRequest(BaseModel):
 _tracked_channels: list[dict] = []
 
 
-def _require_cron_secret(x_cron_secret: Optional[str]) -> None:
+def _require_cron_secret(x_cron_secret: str) -> None:
   expected = (os.environ.get("CRON_SECRET") or "").strip()
   if not expected:
     raise HTTPException(status_code=500, detail="CRON_SECRET is not configured")
@@ -225,7 +225,7 @@ async def warm_transcripts(req: WarmRequest) -> dict:
 
 @router.post("/cron/warm-transcripts", tags=["system"])
 async def cron_warm_transcripts(
-  x_cron_secret: Optional[str] = Header(default=None),
+  x_cron_secret: str = Header(default=""),
   max_results: int = Query(5, ge=1, le=20),
 ) -> dict:
   """
