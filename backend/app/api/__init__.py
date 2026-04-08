@@ -42,14 +42,14 @@ class WarmRequest(BaseModel):
 class IntegrationCheckTextRequest(BaseModel):
     transcript_text: str
     competitor_videos: list[CompetitorVideo]
-    source_video_url: str | None = None
-    source_title: str | None = None
+    source_video_url: Optional[str] = None
+    source_title: Optional[str] = None
 
 class TrackedChannel(BaseModel):
     channel_id: str
-    name: str | None = None
-    url: str | None = None
-    thumb: str | None = None
+    name: Optional[str] = None
+    url: Optional[str] = None
+    thumb: Optional[str] = None
 
 class TrackedChannelsRequest(BaseModel):
     channels: list[TrackedChannel]
@@ -57,7 +57,7 @@ class TrackedChannelsRequest(BaseModel):
 _tracked_channels: list[dict] = []
 
 
-def _require_cron_secret(x_cron_secret: str | None) -> None:
+def _require_cron_secret(x_cron_secret: Optional[str]) -> None:
   expected = (os.environ.get("CRON_SECRET") or "").strip()
   if not expected:
     raise HTTPException(status_code=500, detail="CRON_SECRET is not configured")
@@ -225,7 +225,7 @@ async def warm_transcripts(req: WarmRequest) -> dict:
 
 @router.post("/cron/warm-transcripts", tags=["system"])
 async def cron_warm_transcripts(
-  x_cron_secret: str | None = Header(default=None),
+  x_cron_secret: Optional[str] = Header(default=None),
   max_results: int = Query(5, ge=1, le=20),
 ) -> dict:
   """
