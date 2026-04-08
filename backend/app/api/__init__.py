@@ -61,6 +61,14 @@ _WORKFLOW_CHANNELS_FILE = Path(
   os.environ.get("WORKFLOW_CHANNELS_FILE", "/tmp/workflow_channels.json")
 ).resolve()
 
+# Python 3.9 + pydantic v2 can require explicit rebuild for postponed annotations.
+CompetitorVideo.model_rebuild()
+CheckOriginalRequest.model_rebuild()
+WarmRequest.model_rebuild()
+IntegrationCheckTextRequest.model_rebuild()
+TrackedChannel.model_rebuild()
+TrackedChannelsRequest.model_rebuild()
+
 
 def _require_cron_secret(x_cron_secret: str) -> None:
   expected = (os.environ.get("CRON_SECRET") or "").strip()
