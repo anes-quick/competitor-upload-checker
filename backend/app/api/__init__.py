@@ -5,7 +5,7 @@ import os
 import json
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Query, Header
+from fastapi import APIRouter, HTTPException, Query, Header, Body
 from pydantic import BaseModel
 
 from app.services.transcripts import (
@@ -48,15 +48,6 @@ class IntegrationCheckTextRequest(BaseModel):
     source_video_url: Optional[str] = None
     source_title: Optional[str] = None
 
-class TrackedChannel(BaseModel):
-    channel_id: str
-    name: Optional[str] = None
-    url: Optional[str] = None
-    thumb: Optional[str] = None
-
-class TrackedChannelsRequest(BaseModel):
-    channels: list[TrackedChannel]
-
 _tracked_channels: list[dict] = []
 _WORKFLOW_CHANNELS_FILE = Path(
   os.environ.get("WORKFLOW_CHANNELS_FILE", "/tmp/workflow_channels.json")
@@ -67,8 +58,6 @@ CompetitorVideo.model_rebuild()
 CheckOriginalRequest.model_rebuild()
 WarmRequest.model_rebuild()
 IntegrationCheckTextRequest.model_rebuild()
-TrackedChannel.model_rebuild()
-TrackedChannelsRequest.model_rebuild()
 
 
 def _require_cron_secret(x_cron_secret: str) -> None:
@@ -153,7 +142,7 @@ async def health() -> dict:
 
 
 @router.put("/integration/tracked-channels", tags=["integration"])
-async def set_tracked_channels(req: TrackedChannelsRequest) -> dict:
+async def set_tracked_channels(payload: dict = Body(...)) -> dict:
   """
   Sync tracked channels from frontend to backend.
   Cron warm job uses this list so no manual env updates are required.
@@ -161,16 +150,21 @@ async def set_tracked_channels(req: TrackedChannelsRequest) -> dict:
   global _tracked_channels
   clean = []
   seen = set()
-  for ch in req.channels:
-    cid = (ch.channel_id or "").strip()
+  channels = payload.get("channels") if isinstance(payload, dict) else None
+  if not isinstance(channels, list):
+    raise HTTPException(status_code=400, detail="channels must be an array")
+  for ch in channels:
+    if not isinstance(ch, dict):
+      continue
+    cid = str(ch.get("channel_id") or "").strip()
     if not cid or cid in seen:
       continue
     seen.add(cid)
     clean.append({
       "channel_id": cid,
-      "name": (ch.name or "").strip(),
-      "url": (ch.url or "").strip(),
-      "thumb": (ch.thumb or "").strip(),
+      "name": str(ch.get("name") or "").strip(),
+      "url": str(ch.get("url") or "").strip(),
+      "thumb": str(ch.get("thumb") or "").strip(),
     })
   _tracked_channels = clean
   return {"status": "ok", "count": len(_tracked_channels)}
@@ -183,23 +177,28 @@ async def get_tracked_channels() -> dict:
 
 
 @router.put("/integration/workflow-channels", tags=["integration"])
-async def set_workflow_channels(req: TrackedChannelsRequest) -> dict:
+async def set_workflow_channels(payload: dict = Body(...)) -> dict:
   """
   Persist shared workflow channel set used by cron warmups.
   This is independent from each user's local channel list.
   """
   clean = []
   seen = set()
-  for ch in req.channels:
-    cid = (ch.channel_id or "").strip()
+  channels = payload.get("channels") if isinstance(payload, dict) else None
+  if not isinstance(channels, list):
+    raise HTTPException(status_code=400, detail="channels must be an array")
+  for ch in channels:
+    if not isinstance(ch, dict):
+      continue
+    cid = str(ch.get("channel_id") or "").strip()
     if not cid or cid in seen:
       continue
     seen.add(cid)
     clean.append({
       "channel_id": cid,
-      "name": (ch.name or "").strip(),
-      "url": (ch.url or "").strip(),
-      "thumb": (ch.thumb or "").strip(),
+      "name": str(ch.get("name") or "").strip(),
+      "url": str(ch.get("url") or "").strip(),
+      "thumb": str(ch.get("thumb") or "").strip(),
     })
   global _tracked_channels
   _tracked_channels = list(clean)
