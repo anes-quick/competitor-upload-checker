@@ -3,12 +3,10 @@ Service for fetching YouTube video transcripts.
 Includes an in-memory cache to avoid hitting YouTube rate limits when
 checking many US videos against the same competitor set.
 
-Reliable option (no blocking): set FETCHTRANSCRIPT_API_KEY to use FetchTranscript.com
-API. They handle YouTube on their side; no proxy needed. See TRANSCRIPT-RELIABILITY-RESEARCH.md.
-
-Other options:
-- Run this backend on a cloud host (Railway, etc.). Transcript requests use the server's IP.
-- Or set YOUTUBE_TRANSCRIPT_PROXY so requests go through a proxy (can be flaky).
+Provider order:
+1) TranscriptAPI (TRANSCRIPTAPI_KEY)
+2) FetchTranscript (FETCHTRANSCRIPT_API_KEY)
+3) youtube-transcript-api fallback (optional proxy)
 """
 
 import os
@@ -87,6 +85,11 @@ def _get_transcript_via_fetchtranscript(video_id: str, preferred_lang: Optional[
     from app.services.fetchtranscript_api import fetch_transcript as ft_fetch
     return ft_fetch(video_id, lang=preferred_lang)
 
+def _get_transcript_via_transcriptapi(video_id: str, preferred_lang: Optional[str] = None) -> dict:
+    """Use TranscriptAPI.com when key is set. Raises ValueError on error."""
+    from app.services.transcriptapi_client import fetch_transcript as ta_fetch
+    return ta_fetch(video_id, lang=preferred_lang)
+
 
 # When no language preference, try many so we get transcripts in Hindi, Arabic, etc.
 _ANY_LANGUAGE_CODES = (
@@ -128,8 +131,10 @@ def _get_transcript_via_youtube_api(video_id: str, preferred_lang: Optional[str]
 def get_transcript(video_id: str, preferred_lang: Optional[str] = None) -> dict:
     """
     Fetch transcript for a YouTube video.
-    Uses FetchTranscript.com API if FETCHTRANSCRIPT_API_KEY is set (reliable, no blocking).
-    Otherwise uses youtube-transcript-api (optional proxy via YOUTUBE_TRANSCRIPT_PROXY).
+    Provider order:
+      1) TranscriptAPI if TRANSCRIPTAPI_KEY is set
+      2) FetchTranscript if FETCHTRANSCRIPT_API_KEY is set
+      3) youtube-transcript-api fallback (optional proxy via YOUTUBE_TRANSCRIPT_PROXY)
 
     preferred_lang: optional "en" or "de" to prefer that language; omit for any language (e.g. Hindi, Arabic).
 
@@ -139,7 +144,23 @@ def get_transcript(video_id: str, preferred_lang: Optional[str] = None) -> dict:
     Raises:
       ValueError: If transcript cannot be fetched (disabled, unavailable, etc.)
     """
-    if (os.environ.get("FETCHTRANSCRIPT_API_KEY") or "").strip():
+    has_ta = (os.environ.get("TRANSCRIPTAPI_KEY") or "").strip()
+    has_ft = (os.environ.get("FETCHTRANSCRIPT_API_KEY") or "").strip()
+
+    if has_ta:
+        try:
+            result = _get_transcript_via_transcriptapi(video_id, preferred_lang)
+        except ValueError:
+            if has_ft:
+                result = _get_transcript_via_fetchtranscript(video_id, preferred_lang)
+            else:
+                result = _get_transcript_via_youtube_api(video_id, preferred_lang)
+        except Exception as e:
+            if has_ft:
+                result = _get_transcript_via_fetchtranscript(video_id, preferred_lang)
+            else:
+                raise ValueError(f"TranscriptAPI error: {e!s}")
+    elif has_ft:
         try:
             result = _get_transcript_via_fetchtranscript(video_id, preferred_lang)
         except ValueError:
