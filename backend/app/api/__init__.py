@@ -11,7 +11,7 @@ from app.services.transcripts import (
     cache_stats,
 )
 from app.services.translate import translate_to_german
-from app.services.matching import find_matches
+from app.services.matching import find_matches, DEFAULT_MATCH_THRESHOLD
 from app.services import youtube_data as yt
 
 
@@ -38,6 +38,12 @@ class CheckOriginalRequest(BaseModel):
 
 class WarmRequest(BaseModel):
     video_ids: list[str]
+
+class IntegrationCheckTextRequest(BaseModel):
+    transcript_text: str
+    competitor_videos: list[CompetitorVideo]
+    source_video_url: str | None = None
+    source_title: str | None = None
 
 
 @router.get("/health", tags=["system"])
@@ -204,4 +210,58 @@ async def check_original(req: CheckOriginalRequest) -> dict:
     raise HTTPException(status_code=400, detail=str(e))
   except Exception as e:
     raise HTTPException(status_code=502, detail=f"Transcript service error: {getattr(e, 'message', str(e))}")
+
+
+@router.post("/integration/check-text", tags=["integration"])
+async def integration_check_text(req: IntegrationCheckTextRequest) -> dict:
+  """
+  Check a provided transcript text against cached competitor transcripts.
+
+  Intended for other tools (e.g. Trello prep flow) that already fetched a
+  transcript and only need duplicate detection.
+  """
+  try:
+    source_text = (req.transcript_text or "").strip()
+    if not source_text:
+      raise HTTPException(status_code=400, detail="transcript_text is required")
+
+    translated = translate_to_german(source_text)
+
+    candidates = []
+    for cv in req.competitor_videos:
+      ct = get_transcript_cached(cv.video_id)
+      if not ct:
+        continue
+      candidates.append({
+        "video_id": cv.video_id,
+        "channel_name": cv.channel_name,
+        "title": cv.title,
+        "channel_id": cv.channel_id,
+        "transcript": ct.get("transcript", "") or "",
+      })
+
+    if req.competitor_videos and not candidates:
+      raise HTTPException(
+        status_code=400,
+        detail="No competitor transcripts in cache. Load transcripts first.",
+      )
+
+    matches = find_matches(translated, candidates, threshold=DEFAULT_MATCH_THRESHOLD)
+    for m in matches:
+      m["link"] = f"https://www.youtube.com/watch?v={m['video_id']}"
+
+    return {
+      "is_duplicate": bool(matches),
+      "matches": matches,
+      "threshold_used": DEFAULT_MATCH_THRESHOLD,
+      "translated_preview": translated[:300] + ("…" if len(translated) > 300 else ""),
+      "source_video_url": req.source_video_url or "",
+      "source_title": req.source_title or "",
+    }
+  except ValueError as e:
+    raise HTTPException(status_code=400, detail=str(e))
+  except HTTPException:
+    raise
+  except Exception as e:
+    raise HTTPException(status_code=502, detail=f"Integration check error: {getattr(e, 'message', str(e))}")
 

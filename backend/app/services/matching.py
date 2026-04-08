@@ -17,6 +17,8 @@ STOPWORDS = {
     "it", "its", "this", "that", "these", "those", "i", "you", "he", "she", "we", "they",
 }
 
+DEFAULT_MATCH_THRESHOLD = 0.17
+
 
 def _normalize(text: str) -> set[str]:
     """Lowercase, remove punctuation/numbers, split into words, drop stopwords."""
@@ -46,7 +48,7 @@ def similarity(a: str, b: str) -> float:
 def find_matches(
     source_text: str,
     candidates: list[dict],
-    threshold: float = 0.17,
+    threshold: float = DEFAULT_MATCH_THRESHOLD,
 ) -> list[dict]:
     """
     Find competitor videos whose transcript is similar to the source (translated US).
