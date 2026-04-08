@@ -1,6 +1,5 @@
 """
-TranscriptAPI.com client.
-Primary provider when TRANSCRIPTAPI_KEY is set.
+TranscriptAPI.com client (mirrors the working sibling project setup).
 """
 
 from __future__ import annotations
@@ -15,28 +14,26 @@ _log = logging.getLogger(__name__)
 
 
 def _base_url() -> str:
-    # Keep configurable in case provider path changes.
-    return (os.environ.get("TRANSCRIPTAPI_BASE_URL") or "https://api.transcriptapi.com/v1").rstrip("/")
+    return (os.environ.get("TRANSCRIPTAPI_BASE_URL") or "https://transcriptapi.com/api/v2").rstrip("/")
 
 
 def _api_key() -> str:
-    key = (os.environ.get("TRANSCRIPTAPI_KEY") or "").strip()
+    # Prefer the key name used in the working project; keep old name as fallback.
+    key = (os.environ.get("TRANSCRIPTAPI_API_KEY") or os.environ.get("TRANSCRIPTAPI_KEY") or "").strip()
     if not key:
-        raise ValueError("TRANSCRIPTAPI_KEY is not set")
+        raise ValueError("TRANSCRIPTAPI_API_KEY is not set")
     return key
 
 
 def _request_once(video_id: str, key: str, lang: Optional[str]) -> dict:
-    url = f"{_base_url()}/transcripts/{video_id}"
-    params: dict[str, str] = {}
-    if lang:
-        params["lang"] = lang
-
-    # Try both common auth styles.
-    headers = {
-        "Authorization": f"Bearer {key}",
-        "x-api-key": key,
+    url = f"{_base_url()}/youtube/transcript"
+    params: dict[str, str] = {
+        "video_url": video_id,
+        "format": "json",
+        "include_timestamp": "false",
+        "send_metadata": "true",
     }
+    headers = {"Authorization": f"Bearer {key}"}
 
     with httpx.Client(timeout=30.0) as client:
         resp = client.get(url, params=params, headers=headers)
@@ -48,17 +45,22 @@ def _request_once(video_id: str, key: str, lang: Optional[str]) -> dict:
 
     data = resp.json()
 
-    # Accept a few common payload styles.
-    text = (
-        (data.get("text") or "").strip()
-        or (data.get("transcript") or "").strip()
-        or (data.get("content") or "").strip()
-    )
-    language = (data.get("language") or data.get("lang") or "en").lower()
-
-    # Segment array -> text fallback
-    if not text and isinstance(data.get("segments"), list):
-        text = " ".join((s.get("text") or "").strip() for s in data["segments"] if isinstance(s, dict)).strip()
+    # Working project returns transcript segments in payload["transcript"].
+    text = ""
+    transcript_segments = data.get("transcript")
+    if isinstance(transcript_segments, list):
+        text = " ".join(
+            (s.get("text") or "").strip()
+            for s in transcript_segments
+            if isinstance(s, dict) and s.get("text")
+        ).strip()
+    else:
+        text = (
+            (data.get("text") or "").strip()
+            or (data.get("transcript") or "").strip()
+            or (data.get("content") or "").strip()
+        )
+    language = (data.get("language") or data.get("lang") or "de").lower()
 
     if not text:
         return {"status": 0, "text": "empty"}
