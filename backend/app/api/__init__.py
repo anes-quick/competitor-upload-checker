@@ -45,6 +45,17 @@ class IntegrationCheckTextRequest(BaseModel):
     source_video_url: str | None = None
     source_title: str | None = None
 
+class TrackedChannel(BaseModel):
+    channel_id: str
+    name: str | None = None
+    url: str | None = None
+    thumb: str | None = None
+
+class TrackedChannelsRequest(BaseModel):
+    channels: list[TrackedChannel]
+
+_tracked_channels: list[dict] = []
+
 
 def _require_cron_secret(x_cron_secret: str | None) -> None:
   expected = (os.environ.get("CRON_SECRET") or "").strip()
@@ -66,6 +77,18 @@ def _channel_ids_from_env() -> list[str]:
   return out
 
 
+def _channel_ids_for_cron() -> list[str]:
+  # Prefer channels synced from frontend; fallback to env list.
+  ids = []
+  for ch in _tracked_channels:
+    cid = (ch.get("channel_id") or "").strip()
+    if cid and cid not in ids:
+      ids.append(cid)
+  if ids:
+    return ids
+  return _channel_ids_from_env()
+
+
 @router.get("/health", tags=["system"])
 async def health() -> dict:
   """
@@ -74,6 +97,36 @@ async def health() -> dict:
   Useful for uptime checks and verifying deployments.
   """
   return {"status": "ok"}
+
+
+@router.put("/integration/tracked-channels", tags=["integration"])
+async def set_tracked_channels(req: TrackedChannelsRequest) -> dict:
+  """
+  Sync tracked channels from frontend to backend.
+  Cron warm job uses this list so no manual env updates are required.
+  """
+  global _tracked_channels
+  clean = []
+  seen = set()
+  for ch in req.channels:
+    cid = (ch.channel_id or "").strip()
+    if not cid or cid in seen:
+      continue
+    seen.add(cid)
+    clean.append({
+      "channel_id": cid,
+      "name": (ch.name or "").strip(),
+      "url": (ch.url or "").strip(),
+      "thumb": (ch.thumb or "").strip(),
+    })
+  _tracked_channels = clean
+  return {"status": "ok", "count": len(_tracked_channels)}
+
+
+@router.get("/integration/tracked-channels", tags=["integration"])
+async def get_tracked_channels() -> dict:
+  """Return currently synced tracked channels used by cron warmups."""
+  return {"channels": list(_tracked_channels), "count": len(_tracked_channels)}
 
 
 # ─── YouTube Data API proxy (API key on backend only) ───────────────────────────
@@ -180,16 +233,19 @@ async def cron_warm_transcripts(
 
   Required env vars:
   - CRON_SECRET: secret checked against X-Cron-Secret header
-  - TRACKED_CHANNEL_IDS: comma-separated YouTube channel IDs (UC...)
+  - TRACKED_CHANNEL_IDS: optional fallback channel IDs if frontend has not synced yet
   """
   _require_cron_secret(x_cron_secret)
 
   if _warm_state.get("in_progress"):
     return {"status": "already_running", "total": _warm_state["total"], "warmed": _warm_state["warmed"], "failed": _warm_state["failed"]}
 
-  channel_ids = _channel_ids_from_env()
+  channel_ids = _channel_ids_for_cron()
   if not channel_ids:
-    raise HTTPException(status_code=400, detail="TRACKED_CHANNEL_IDS is empty")
+    raise HTTPException(
+      status_code=400,
+      detail="No tracked channels available. Sync channels from frontend or set TRACKED_CHANNEL_IDS.",
+    )
 
   # Allow env override while keeping query parameter available.
   env_mr = (os.environ.get("CRON_RECENT_UPLOADS_PER_CHANNEL") or "").strip()

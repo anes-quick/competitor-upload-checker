@@ -57,7 +57,7 @@ If the project is **not** on GitHub yet:
   - `YOUTUBE_TRANSCRIPT_PROXY` = optional proxy URL
 - For Railway cron warmup automation, also add:
   - `CRON_SECRET` = random secret string
-  - `TRACKED_CHANNEL_IDS` = comma-separated channel IDs (e.g. `UCxxx,UCyyy,UCzzz`)
+  - `TRACKED_CHANNEL_IDS` = optional fallback list (usually not needed once frontend sync is active)
   - `CRON_RECENT_UPLOADS_PER_CHANNEL` = optional per-channel count (e.g. `5`)
 
 ---

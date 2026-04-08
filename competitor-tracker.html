@@ -1058,6 +1058,25 @@ function saveChannels(ch) {
   localStorage.setItem(STORAGE_KEY_CHANNELS, JSON.stringify(ch));
 }
 
+async function syncTrackedChannelsToBackend(channels) {
+  try {
+    await fetch(`${BACKEND_URL}/api/integration/tracked-channels`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channels: (channels || []).map(c => ({
+          channel_id: c.channelId,
+          name: c.name || '',
+          url: c.url || '',
+          thumb: c.thumb || '',
+        })),
+      }),
+    });
+  } catch (_) {
+    // Silent: UI should still work if backend sync is temporarily unavailable.
+  }
+}
+
 function renderChannelPills() {
   const channels = loadChannels();
   const list = document.getElementById('channels-list');
@@ -1094,6 +1113,7 @@ async function addChannel() {
     }
     channels.push(info);
     saveChannels(channels);
+    await syncTrackedChannelsToBackend(channels);
     removeFromRecentChannels(info.channelId);
     renderChannelPills();
     renderRecentChannels();
@@ -1108,12 +1128,13 @@ async function addChannel() {
   }
 }
 
-function removeChannel(i) {
+async function removeChannel(i) {
   const channels = loadChannels();
   const removed = channels[i];
   if (removed) addToRecentChannels(removed);
   channels.splice(i, 1);
   saveChannels(channels);
+  await syncTrackedChannelsToBackend(channels);
   renderChannelPills();
   renderRecentChannels();
   loadAllChannels();
@@ -1174,7 +1195,7 @@ function renderRecentChannels() {
   }
 }
 
-function addBackFromRecent(channelId) {
+async function addBackFromRecent(channelId) {
   const list = getRecentChannels();
   const ch = list.find(r => r.channelId === channelId);
   if (!ch) return;
@@ -1186,6 +1207,7 @@ function addBackFromRecent(channelId) {
   }
   channels.push(ch);
   saveChannels(channels);
+  await syncTrackedChannelsToBackend(channels);
   removeFromRecentChannels(channelId);
   renderChannelPills();
   renderRecentChannels();
@@ -1404,6 +1426,7 @@ function init() {
   initCardSizeSlider();
   renderChannelPills();
   const channels = loadChannels();
+  syncTrackedChannelsToBackend(channels);
   if (channels.length) {
     setStatus('ok', 'Click Refresh All to load videos.');
     loadAllChannels();
