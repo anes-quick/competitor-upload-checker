@@ -41,6 +41,7 @@ def _request_once(video_id: str, key: str, lang: Optional[str]) -> dict:
     with httpx.Client(timeout=30.0) as client:
         resp = client.get(url, params=params, headers=headers)
     _log.info("TranscriptAPI request: url=%s status=%s lang=%s", url, resp.status_code, lang or "auto")
+    print(f"[transcripts][transcriptapi] request url={url} status={resp.status_code} lang={lang or 'auto'}")
 
     if resp.status_code != 200:
         return {"status": resp.status_code, "text": resp.text[:300]}
