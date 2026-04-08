@@ -11,6 +11,7 @@ Provider order:
 
 import os
 import time
+import logging
 from typing import Optional
 
 from youtube_transcript_api import (
@@ -50,6 +51,7 @@ def _make_api():
 _CACHE: dict[str, dict] = {}
 _CACHE_TTL_SEC = 6 * 3600  # 6 hours
 _MAX_CACHE_SIZE = 500
+_log = logging.getLogger(__name__)
 
 
 def _cache_get(video_id: str) -> Optional[dict]:
@@ -146,29 +148,44 @@ def get_transcript(video_id: str, preferred_lang: Optional[str] = None) -> dict:
     """
     has_ta = (os.environ.get("TRANSCRIPTAPI_KEY") or "").strip()
     has_ft = (os.environ.get("FETCHTRANSCRIPT_API_KEY") or "").strip()
+    _log.info(
+        "Transcript provider selection: video_id=%s has_transcriptapi=%s has_fetchtranscript=%s preferred_lang=%s",
+        video_id,
+        bool(has_ta),
+        bool(has_ft),
+        preferred_lang or "auto",
+    )
 
     if has_ta:
         try:
             result = _get_transcript_via_transcriptapi(video_id, preferred_lang)
-        except ValueError:
+            _log.info("Transcript provider used: transcriptapi")
+        except ValueError as e:
+            _log.warning("TranscriptAPI failed, fallback reason: %s", str(e)[:220])
             if has_ft:
                 result = _get_transcript_via_fetchtranscript(video_id, preferred_lang)
+                _log.info("Transcript provider used: fetchtranscript (after transcriptapi failure)")
             else:
                 result = _get_transcript_via_youtube_api(video_id, preferred_lang)
+                _log.info("Transcript provider used: youtube_transcript_api (after transcriptapi failure)")
         except Exception as e:
+            _log.warning("TranscriptAPI exception, fallback reason: %s", str(e)[:220])
             if has_ft:
                 result = _get_transcript_via_fetchtranscript(video_id, preferred_lang)
+                _log.info("Transcript provider used: fetchtranscript (after transcriptapi exception)")
             else:
                 raise ValueError(f"TranscriptAPI error: {e!s}")
     elif has_ft:
         try:
             result = _get_transcript_via_fetchtranscript(video_id, preferred_lang)
+            _log.info("Transcript provider used: fetchtranscript")
         except ValueError:
             raise
         except Exception as e:
             raise ValueError(f"FetchTranscript API error: {e!s}")
     else:
         result = _get_transcript_via_youtube_api(video_id, preferred_lang)
+        _log.info("Transcript provider used: youtube_transcript_api")
 
     text = result["transcript"]
     language = result["language"]

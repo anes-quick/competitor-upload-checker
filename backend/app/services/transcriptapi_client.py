@@ -6,9 +6,12 @@ Primary provider when TRANSCRIPTAPI_KEY is set.
 from __future__ import annotations
 
 import os
+import logging
 from typing import Optional
 
 import httpx
+
+_log = logging.getLogger(__name__)
 
 
 def _base_url() -> str:
@@ -37,6 +40,7 @@ def _request_once(video_id: str, key: str, lang: Optional[str]) -> dict:
 
     with httpx.Client(timeout=30.0) as client:
         resp = client.get(url, params=params, headers=headers)
+    _log.info("TranscriptAPI request: url=%s status=%s lang=%s", url, resp.status_code, lang or "auto")
 
     if resp.status_code != 200:
         return {"status": resp.status_code, "text": resp.text[:300]}
