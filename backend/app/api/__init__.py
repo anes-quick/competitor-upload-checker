@@ -57,7 +57,9 @@ class TrackedChannelsRequest(BaseModel):
     channels: list[TrackedChannel]
 
 _tracked_channels: list[dict] = []
-_WORKFLOW_CHANNELS_FILE = Path(__file__).resolve().parent.parent / "data" / "workflow_channels.json"
+_WORKFLOW_CHANNELS_FILE = Path(
+  os.environ.get("WORKFLOW_CHANNELS_FILE", "/tmp/workflow_channels.json")
+).resolve()
 
 
 def _require_cron_secret(x_cron_secret: str) -> None:
@@ -190,8 +192,14 @@ async def set_workflow_channels(req: TrackedChannelsRequest) -> dict:
       "url": (ch.url or "").strip(),
       "thumb": (ch.thumb or "").strip(),
     })
-  _save_workflow_channels(clean)
-  return {"status": "ok", "count": len(clean)}
+  global _tracked_channels
+  _tracked_channels = list(clean)
+  try:
+    _save_workflow_channels(clean)
+    return {"status": "ok", "count": len(clean), "persisted": True}
+  except Exception:
+    # Avoid blocking UI action if filesystem persistence is unavailable.
+    return {"status": "ok", "count": len(clean), "persisted": False}
 
 
 @router.get("/integration/workflow-channels", tags=["integration"])
