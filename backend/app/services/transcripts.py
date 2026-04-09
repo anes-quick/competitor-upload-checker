@@ -6,7 +6,6 @@ checking many US videos against the same competitor set.
 Provider order:
 1) TranscriptAPI (TRANSCRIPTAPI_API_KEY)
 2) FetchTranscript (FETCHTRANSCRIPT_API_KEY)
-3) youtube-transcript-api fallback (optional proxy)
 """
 
 import os
@@ -14,53 +13,20 @@ import time
 import logging
 from typing import Optional
 
-from youtube_transcript_api import (
-    YouTubeTranscriptApi,
-    TranscriptsDisabled,
-    NoTranscriptFound,
-    VideoUnavailable,
-    IpBlocked,
-    RequestBlocked,
-)
-
-# Optional proxy: set YOUTUBE_TRANSCRIPT_PROXY (or HTTP_PROXY/HTTPS_PROXY) so
-# transcript requests do not use the server's IP (e.g. when running locally
-# and you don't want your business IP to hit YouTube).
-def _proxy_config():
-    url = os.environ.get("YOUTUBE_TRANSCRIPT_PROXY", "").strip()
-    if url:
-        from youtube_transcript_api.proxies import GenericProxyConfig
-        return GenericProxyConfig(http_url=url, https_url=url)
-    http_proxy = os.environ.get("HTTP_PROXY", os.environ.get("http_proxy", "")).strip()
-    https_proxy = os.environ.get("HTTPS_PROXY", os.environ.get("https_proxy", "")).strip()
-    if https_proxy or http_proxy:
-        from youtube_transcript_api.proxies import GenericProxyConfig
-        return GenericProxyConfig(
-            http_url=https_proxy or http_proxy,
-            https_url=http_proxy or https_proxy,
-        )
-    return None
-
-
-def _make_api():
-    cfg = _proxy_config()
-    return YouTubeTranscriptApi(proxy_config=cfg) if cfg else YouTubeTranscriptApi()
-
 # In-memory cache: video_id -> { "transcript", "language", "fetched_at" }
-# TTL = 6 hours so re-checks don't require re-loading transcripts
+# TTL = 4 days so re-checks don't require re-loading transcripts
 _CACHE: dict[str, dict] = {}
-_CACHE_TTL_SEC = 6 * 3600  # 6 hours
+_CACHE_TTL_SEC = 4 * 24 * 3600  # 4 days
 _MAX_CACHE_SIZE = 500
 _log = logging.getLogger(__name__)
 
 PROVIDER_TRANSCRIPTAPI = "transcriptapi"
 PROVIDER_FETCHTRANSCRIPT = "fetchtranscript"
-PROVIDER_YOUTUBE = "youtube"
 
 
 def _normalize_provider(value: str, default: str) -> str:
     v = (value or "").strip().lower()
-    if v in (PROVIDER_TRANSCRIPTAPI, PROVIDER_FETCHTRANSCRIPT, PROVIDER_YOUTUBE):
+    if v in (PROVIDER_TRANSCRIPTAPI, PROVIDER_FETCHTRANSCRIPT):
         return v
     return default
 
@@ -77,8 +43,6 @@ def _provider_order() -> list[str]:
     order = [primary]
     if fallback != primary:
         order.append(fallback)
-    if PROVIDER_YOUTUBE not in order:
-        order.append(PROVIDER_YOUTUBE)
     return order
 
 
@@ -121,50 +85,13 @@ def _get_transcript_via_transcriptapi(video_id: str, preferred_lang: Optional[st
     return ta_fetch(video_id, lang=preferred_lang)
 
 
-# When no language preference, try many so we get transcripts in Hindi, Arabic, etc.
-_ANY_LANGUAGE_CODES = (
-    "en", "de", "hi", "ar", "es", "fr", "pt", "ru", "ja", "ko", "zh", "zh-Hans", "zh-Hant",
-    "tr", "it", "nl", "pl", "id", "th", "vi", "uk", "ro", "hu", "sv", "el", "he", "fa",
-)
-
-def _get_transcript_via_youtube_api(video_id: str, preferred_lang: Optional[str] = None) -> dict:
-    """Use youtube-transcript-api (with optional proxy). Raises ValueError on error."""
-    api = _make_api()
-    if preferred_lang == "de":
-        languages = ("de", "en") + tuple(c for c in _ANY_LANGUAGE_CODES if c not in ("de", "en"))
-    elif preferred_lang == "en":
-        languages = ("en", "de") + tuple(c for c in _ANY_LANGUAGE_CODES if c not in ("en", "de"))
-    else:
-        languages = _ANY_LANGUAGE_CODES
-    try:
-        fetched = api.fetch(video_id, languages=languages)
-    except TranscriptsDisabled:
-        raise ValueError("Transcripts are disabled for this video")
-    except NoTranscriptFound:
-        raise ValueError("No transcript found for this video")
-    except VideoUnavailable:
-        raise ValueError("Video is unavailable or does not exist")
-    except (IpBlocked, RequestBlocked):
-        raise ValueError(
-            "YouTube is temporarily blocking transcript requests from this IP (too many requests). "
-            "Wait a few minutes and try again, or set FETCHTRANSCRIPT_API_KEY for reliable transcripts."
-        )
-
-    if not fetched or len(fetched) == 0:
-        raise ValueError("Transcript is empty")
-
-    text = " ".join(snippet.text for snippet in fetched)
-    language = fetched.language
-    return {"transcript": text, "language": language}
-
-
 def get_transcript(video_id: str, preferred_lang: Optional[str] = None) -> dict:
     """
     Fetch transcript for a YouTube video.
     Provider order (configurable):
       - TRANSCRIPT_PROVIDER_PRIMARY (default: transcriptapi)
       - TRANSCRIPT_PROVIDER_FALLBACK (default: fetchtranscript)
-      - youtube fallback is always available as last resort
+      - No direct YouTube fallback; uses API providers only
 
     preferred_lang: optional "en" or "de" to prefer that language; omit for any language (e.g. Hindi, Arabic).
 
@@ -208,10 +135,6 @@ def get_transcript(video_id: str, preferred_lang: Optional[str] = None) -> dict:
                 _log.info("Transcript provider used: fetchtranscript")
                 print("[transcripts] provider=fetchtranscript")
                 break
-            result = _get_transcript_via_youtube_api(video_id, preferred_lang)
-            _log.info("Transcript provider used: youtube_transcript_api")
-            print("[transcripts] provider=youtube_transcript_api")
-            break
         except Exception as e:
             msg = str(e)[:220]
             errors.append(f"{provider}: {msg}")

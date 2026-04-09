@@ -20,8 +20,8 @@ from app.services import youtube_data as yt
 
 router = APIRouter()
 
-# Seconds to wait after each successful transcript fetch when warming (avoids YouTube rate limit)
-WARM_DELAY_SEC = 4
+# Seconds to wait after each successful transcript fetch when warming (avoids provider/rate-limit spikes)
+WARM_DELAY_SEC = 8
 
 # Progress state for background warm task (so frontend can poll)
 _warm_state: dict = {"in_progress": False, "total": 0, "warmed": 0, "failed": 0}
